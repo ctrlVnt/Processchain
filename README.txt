@@ -15,3 +15,5 @@ e invia nuovamente la transazione processata al master.
 
 File ricevente: rimane in attesa dei soldi, non è necessario che inserisca un badget iniziale
 ma si potrebbe anche inserire un metodo, per esempio una RATEIZZAZIONE.
+
+SO_BLOCK_SIZE: numero di transazioni contenute in un blocco //DOMANDA DI ESAME
