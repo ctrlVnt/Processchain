@@ -28,6 +28,11 @@ la semop non è bloccante se le 4 azioni non vengono eseguite insieme
 //DOMANDA DI ESAME: ma tra lasciare memori attack e memory get qual'è la system call che effettivamente alloca la memoria?
 SHMGET perché shmattack attacca lka memoria GIA allocata
 
+ogni volta che abbiamo una system call bloccante facciamoci la domanda:
+ma cosa succede se quando il processo è bloccato in quella system call mi arriva un segnale?
+LA SYSTEM CALL SI SBLOCCA, RESTITUISCE -1 E IN ERRNO AVETE IL CORRISPONDENTE VALORE DI ERRORE
+SEMPRE discriminare se si è interrotto per errore o perché si è sbloccata bene
+
 SITUAZIONE 8/12:
 
 creato MAKEFILE per Users e Master, però li compila solo.
