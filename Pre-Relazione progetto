@@ -47,12 +47,11 @@ LIBRO MASTRO(una risorsa condivisa!!!)
 	-Ogni blocco e' identificato da un ID intero progressivo
 	-Transazione memorizzata e' identificata da una TRIPLETA: timestamp, sender, receiver.
 
-*TRANSAZIONE
-	-sorteggio usando mappa <int><string> (int = pid) (string =flag(vivo,morto.....)) 
-		
-		
+-TERMINAZIONE:
+	-SO_SECONDI: alarm!!! (proc. master); 
+	-Capacita' del libro master si esaurisce: controllo prima di registrare una transaction, oppure indice eccede SO_REGISTRY_SIZE!!!
+	*** obbliggare tutti i proc. nodi e i proc. utenti di terminare
 	
-	
-	
-
-
+-TRANSAZIONE
+	-sorteggio usando mappa <int><string> (int = pid) (string =flag(vivo,morto.....)) ???
+	-
