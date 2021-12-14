@@ -27,8 +27,26 @@ PROCESSI UTENTE
 		dopo aver tentato SO_RETRY di inviare volte e non ho i soldi per farlo, termino il processo utente
 		notificando il MASTER(possibili implementazione di attesa dopo ciuascun SO_RETRY)
 		
-	
-	
+PROCESSI NODO
+	-memorizza privatamente la lista di transazioni ricevute da processare -- transaction pool
+		* array di transazioni ??? memoria condivisa ???
+	-se transaction pool e' PIENA allora ogni ulteriore transazione viene SCARTATA e non eseguita e sender informato
+		**(ATTENZIONE punto da gestire in caso di verione "normal"!!!)
+	-transazioni processate in BLOCCHI, ogni BLOCCO contiene un SO_BLOCK_SIZE di transazioni di cui
+	1 e' la transazione di pagamento e il resto sono le transazioni ricevute.
+	-CICLO DI VITA:
+		-Creazione di un blocco candidato
+			-Estrazione un insieme massimo di SO_BLOCK_SIZE-1 transazioni non ancora presenti nel libro.
+		-Simulazione dell'elaborazione attraverso una attesa non attiva(valore compreso tra SO_MIN_TRANS... SO_MAX_TRANS...)
+
+LIBRO MASTRO(una risorsa condivisa!!!)
+	-Accessibile sia ai nodi che agli utenti 
+	-Memorizza le transazioni ESEGUITE
+	-Transazione CONFERMATA se e solo se ENTRA a far parte del libro mastro
+	-E' formato da una sequenza di blocchi(lunghezza massima SO_REGISTRY_SIZE) consecutivi.
+	-Ogni blocco e' identificato da un ID intero progressivo
+	-Transazione memorizzata e' identificata da una TRIPLETA: timestamp, sender, receiver.
+
 *TRANSAZIONE
 	-sorteggio usando mappa <int><string> (int = pid) (string =flag(vivo,morto.....)) 
 		
