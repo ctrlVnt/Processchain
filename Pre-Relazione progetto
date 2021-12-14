@@ -1,0 +1,40 @@
+PROCESSO MASTER
+	-padre di tutti i figli
+	-gestisce la simulazione 
+	-crea il LIBRO MASTRO
+	-stampa periodicamente i bilanci dei PROCESSI UTENTE e NODO e per farlo accede al LIBRO MASTRO
+
+PROCESSI UTENTE
+	-creano e inviano transazioni ai PROCESSI NODO 
+	-ha un BUDGET INIZIALE uguale per tutti
+	-CICLO DI VITA:
+		-calcola il bilancio corrente = BUDGET INIZIALE facendo la somma algebrica (entrate e uscite) 
+	     sottraendo le uscite non registrare nel LIBRO MASTRO
+		-estrae casualmente un nodo a cui inviare soldi e attende un INTERVALLO DI TEMPO
+	-genera una transazioni in risposta ad un segnale(scelto da noi mascherato)
+	
+	GESTIONE INVIO TRANSAZIONE E ATTESA
+		calcolo bilancio corrente(funzione)
+		maschero segnali
+		invio transazione(funzione)
+		smaschero segnali
+		nanosleep(attesaTOTALE, attesaRIMANENTE)
+			eventuale gestione segnale(eve
+			ntuale nuova transazione)
+		se attesaRIMANENTE == 0 continuo normalmente, altrimenti richiamo 
+		nanosleep(attesaRIMANENTE, ...) -> possibile ciclo while(attesaRIMANENTE != 0)
+		continua esecuzione
+		dopo aver tentato SO_RETRY di inviare volte e non ho i soldi per farlo, termino il processo utente
+		notificando il MASTER(possibili implementazione di attesa dopo ciuascun SO_RETRY)
+		
+	
+	
+*TRANSAZIONE
+	-sorteggio usando mappa <int><string> (int = pid) (string =flag(vivo,morto.....)) 
+		
+		
+	
+	
+	
+
+
