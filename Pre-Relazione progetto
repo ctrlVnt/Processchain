@@ -58,3 +58,4 @@ LIBRO MASTRO(una risorsa condivisa!!!)
 	-viene inviata dal processo UTENTE(scelto a caso) al processo NODO(scelto a caso)
 	-vengono creati dai processi utente
 	*** TRANSAZIONE DI REWARD viene gestita(creasta + inviata) dal processo nodo
+	
