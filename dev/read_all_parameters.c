@@ -22,7 +22,7 @@ int main()
 {
     char buffer[256] = {};
     char *token;
-    char *delimeter = "=";
+    char *delimeter = "= ";
     int parsedValue;
     bzero(buffer, 256);
     FILE *configFile = fopen("parameters.txt", "r+");
