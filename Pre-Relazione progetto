@@ -39,6 +39,14 @@ PROCESSI NODO
 			-Estrazione un insieme massimo di SO_BLOCK_SIZE-1 transazioni non ancora presenti nel libro.
 		-Simulazione dell'elaborazione attraverso una attesa non attiva(valore compreso tra SO_MIN_TRANS... SO_MAX_TRANS...)
 
+		STRUTTURA CICLO DI VITA:
+			-FASE 1: riempimento transaction pool
+			-FASE 2: creazione blocco da scrivere sul libro mastro
+			-FASE 3: simulazione elaborazione tramite attesa non attiva
+			-FASE 4: scrittura sul libro mastro del blocco
+			-FASE 5: cancellazione da transaction pool delle transazioni appena scritte sul libro mastro
+			-FASE 6: incremento semaforo con valore SO_BLOCK_SIZE-1 
+
 LIBRO MASTRO(una risorsa condivisa!!!)
 	-Accessibile sia ai nodi che agli utenti 
 	-Memorizza le transazioni ESEGUITE
