@@ -25,27 +25,34 @@ typedef struct transazione{      //inviata dal processo utente a uno dei process
 	int reward;					 //denaro inviato al nodo
 } transazione;
 
+
+
 int main(){
 	int SO_REGISTRY_SIZE, SO_BLOCK_SIZE;
-	SO_REGISTRY_SIZE = 100; //valore da inizializzare a runtime da file parameters.txt
+	SO_REGISTRY_SIZE = 10; //valore da inizializzare a runtime da file parameters.txt
 	SO_BLOCK_SIZE = 10;     //valore da inizializzare a runtime da file parameters.txt
 	
 	
-	int shm_ID = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
-	
-	printf("Dimensione %ld struct\n", sizeof(transazione));
-	transazione *libroMastro = (transazione *)shmat(shm_ID, NULL, 0);
+	//int shm_ID = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
+	int shm_ID = shmget(4321,SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
+	printf("ID: %d\n", shm_ID);
+	//printf("Dimensione %ld struct\n", sizeof(transazione[SO_BLOCK_SIZE])*SO_REGISTRY_SIZE);
+	transazione *(libroMastro) = shmat(shm_ID, NULL, 0);
 	TEST_ERROR;
 	
-	//libroMastro[999* sizeof(transazione)].sender = 10;
+	//libroMastro[0].sender = 10;
 	//printf("pid: %d\n",libroMastro[999*sizeof(transazione)].sender);
 	int i = 0;
 	/*while(1){
 		printf("Dimensione %ld libroMastro[%d]\n", sizeof(libroMastro[i]), i);
 		i++;
 	}*/
+	while(i<400){
+		printf("Dimensione %d libroMastro[%d]\n",libroMastro[i].sender, i);
+		i++;
+	}
 	
-	printf("Dimensione %ld libroMastro[15000]\n", sizeof(libroMastro[15000]));
+	
 	
 	shmctl(shm_ID, IPC_RMID, 0);
 	TEST_ERROR;
