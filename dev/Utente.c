@@ -37,9 +37,9 @@ int main()
 	SO_BLOCK_SIZE = 10;		//valore da inizializzare a runtime da file parameters.txt
 
 	int shm_ID = shmget(4321, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
-	printf("id[%d]\n", shm_ID);
-
-	printf("Dimensione %ld struct\n", sizeof(transazione));
+    printf("id[%d]\n", shm_ID);
+    // sleep(5);
+	// printf("Dimensione %ld struct\n", sizeof(transazione));
 	transazione *libroMastro = (transazione *)shmat(shm_ID, NULL, 0);
 	TEST_ERROR;
 
@@ -47,15 +47,17 @@ int main()
 	{
 		for (int j = 0; j < SO_BLOCK_SIZE; j++)
 		{
-			libroMastro[i*SO_BLOCK_SIZE + j].quantita = rand()%10+1;
-			libroMastro[i*SO_BLOCK_SIZE + j].reward = rand()%10+1;
-		}
+            printf("[%d][%d]\n", i, j);
+			printf("QUANTITA' %d\n", libroMastro[i*SO_BLOCK_SIZE + j].quantita);
+            printf("REWARD %d\n", libroMastro[i*SO_BLOCK_SIZE + j].reward);
+            TEST_ERROR;
+        }
 		
 	}
-	printf("Finito\n");
+    printf("ATTENZZIONE %d\n", libroMastro[100].quantita);
 
-	sleep(10);
+	// sleep(4);
 
-	shmctl(shm_ID, IPC_RMID, 0);
+	// shmctl(shm_ID, IPC_RMID, 0);
 	TEST_ERROR;
 }
