@@ -37,15 +37,23 @@ int main(){
 	transazione *libroMastro = (transazione *)shmat(shm_ID, NULL, 0);
 	TEST_ERROR;
 	
-	//libroMastro[999* sizeof(transazione)].sender = 10;
-	//printf("pid: %d\n",libroMastro[999*sizeof(transazione)].sender);
+	/*libroMastro[1024].sender = 10;
+	printf("pid: %d\n",libroMastro[1024].sender);*/
 	int i = 0;
 	/*while(1){
 		printf("Dimensione %ld libroMastro[%d]\n", sizeof(libroMastro[i]), i);
 		i++;
 	}*/
+	int n;
+	printf("Dimensione %ld libroMastro[n]\n", sizeof(libroMastro[n]));
+
+	/*while(1){
+		libroMastro[i].sender = i+3;
+		printf("cella [%d]: %d\n",i, libroMastro[i].sender);
+		i++;
+	}*/
 	
-	printf("Dimensione %ld libroMastro[15000]\n", sizeof(libroMastro[15000]));
+	//printf("Dimensione %ld libroMastro[15000]\n", sizeof(libroMastro[15000]));
 	
 	shmctl(shm_ID, IPC_RMID, 0);
 	TEST_ERROR;
