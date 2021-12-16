@@ -46,7 +46,10 @@ PROCESSI NODO
 			-FASE 4: scrittura sul libro mastro del blocco
 			-FASE 5: cancellazione da transaction pool delle transazioni appena scritte sul libro mastro
 			-FASE 6: incremento semaforo con valore SO_BLOCK_SIZE-1 
-
+		eventuale controllo finale, quando la transaction pool rimane vuota a lungo, su transaction pool e 
+		processi morti
+		
+		
 LIBRO MASTRO(una risorsa condivisa!!!)
 	-Accessibile sia ai nodi che agli utenti 
 	-Memorizza le transazioni ESEGUITE
@@ -66,4 +69,32 @@ LIBRO MASTRO(una risorsa condivisa!!!)
 	-viene inviata dal processo UTENTE(scelto a caso) al processo NODO(scelto a caso)
 	-vengono creati dai processi utente
 	*** TRANSAZIONE DI REWARD viene gestita(creasta + inviata) dal processo nodo
+
+
+INFORMAZIONI IMPLEMENTATIVE STRUTTURE DA USARE:?
+	-SEMAFORO PER GESTIRE COMUNICAZIONE UTENTE - NODO:
+		-probabilmente necessitiamo di una SETALL e per impostare i valori di tutti i semafori del 
+		 probabile set che definiamo -> dovremmo fare una semget(key, SO_NODES_NUM, permessi e flag)
+		-avremo una combinazione tra l'indice dell'array in cui sono salvati tutti i processi nodo(se scegliamo questa strada) e 
+		 l'id del semaforo che useranno i processi utente per comunicare con quel nodo.
+		 es: "indice array nodo 1 == 1 -> ID_SEMAFORO_NODO = 1"
+		-per evitare la richiesta bloccante quando la TRANSACTION POOL del nodo scelto dall'utente
+		 risulta piena, usiamo nella struct sembuf che passeremo a semop, il flag IPC_NOWAIT che 
+		 restituirà errore EAGAIN -> Da gestire per far cominciare il ciclo di SO_RETRY.
+		
+	-ARRAY CONTENENTE I PID DEI PROCESSI NODO(per scegliere a quale nodo inviare la transazione)
+		-si definisce prima del ciclo for relarivo ai nodi un array di dimensione SO_NODES_NUM a cui facciamo
+		 accedere in mutua esclusione tutti i nodi per memorizzare al suo interno gli ID delle code di messaggi.
+		-utilizziamo poi il pid del nodo per creare la coda di messaggi relativa. L'array ci servirà dunque 
+		 per sapere quale chiave usare per accedere alla coda di messaggi di un relativo nodo.
+		 
+		 SOLUZIONE ALTERNATIVA:
+		 	-al posto del pid inserire nell'array direttamente l'id della coda di messaggi del nodo.
+		 	 I nodi verranno ordinati grazie all'indice dell'array che avrà una corrispondenza 1 a 1 con l'ID 
+		 	 del semaforo che gestisce la memorizzazione.
+	
+	-ARRAY CONTENENTE I PID DEI PROCESSI UTENTE
+		Array necessario in quanto è richiesto di specificare nella transazione chi è il sender(basta un getpid()) e
+		chi è il receiver(valore che dovremo estrarre casualmente da una pool(array?) di possibili destinatari)
+	
 	
