@@ -89,7 +89,7 @@ int main()
                 SO_FRIENDS_NUM = atoi(strtok(NULL, delimeter));
             }
             else {
-                printf("Errore durante il parsing dei parametri!!!\n");
+                printf("Errore durante il parsing dei parametri - token %s\n", token);
                 fclose(configFile);
                 exit(EXIT_FAILURE);
             }
