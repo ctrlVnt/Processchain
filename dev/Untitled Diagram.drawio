@@ -1,20 +1,56 @@
-<mxfile host="app.diagrams.net" modified="2021-12-16T15:52:32.724Z" agent="5.0 (X11)" etag="DsKHbLoPOFTMfWfPedbh" version="15.9.6" type="github">
+<mxfile host="app.diagrams.net" modified="2021-12-16T23:35:32.246Z" agent="5.0 (X11)" etag="W_cmdOlRNgQjBoNk2hXd" version="15.9.6" type="github">
   <diagram id="ndT-znX1_1I9x5nljmBv" name="Page-1">
-    <mxGraphModel dx="1422" dy="730" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1016" dy="521" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="drOMGNEiGwaOuBoNa-Xe-1" value="&lt;div&gt;MASTER&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="drOMGNEiGwaOuBoNa-Xe-1" value="&lt;div style=&quot;font-size: 20px;&quot;&gt;MASTER&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=20;" parent="1" vertex="1">
           <mxGeometry x="44" y="40" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="drOMGNEiGwaOuBoNa-Xe-3" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="drOMGNEiGwaOuBoNa-Xe-1">
+        <mxCell id="drOMGNEiGwaOuBoNa-Xe-3" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="drOMGNEiGwaOuBoNa-Xe-1" edge="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
             <mxPoint x="80" y="400" as="sourcePoint" />
             <mxPoint x="104" y="130" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="drOMGNEiGwaOuBoNa-Xe-4" value="-Leggere parametri da TXT&#xa;-inizializiamo memoria condivisa libro mastro&#xa;-Inizializiamo SO_NODES_NUM code di messaggi e salviamo l&#39;ID in un ARRAY &#xa;  in memoria condivisa&#xa;-Inizializiamo un ARRAY in memoria condivisa dove ciascun utente salverà il proprio PID&#xa;  in posizione del proprio indice (indice = ordine di creazione), quando il processo morirà&#xa;  scriverà nella sua i-esima posizione al posto del proprio PID, -1.&#xa;&#xa;-iniziamo le fork(), prima i NODI e dopo gli UTENTI&#xa;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;fontSize=18;" vertex="1" parent="1">
-          <mxGeometry x="64" y="130" width="746" height="560" as="geometry" />
+        <mxCell id="drOMGNEiGwaOuBoNa-Xe-4" value="-Leggere parametri da TXT&#xa;-inizializiamo memoria condivisa libro mastro&#xa;-Inizializiamo SO_NODES_NUM code di messaggi e salviamo l&#39;ID in un ARRAY &#xa;  in memoria condivisa&#xa;-Inizializiamo un ARRAY in memoria condivisa dove ciascun utente salverà il proprio PID&#xa;  in posizione del proprio indice (indice = ordine di creazione), quando il processo morirà&#xa;  scriverà nella sua i-esima posizione al posto del proprio PID, -1.&#xa;&#xa;-iniziamo le fork(), prima i NODI e dopo gli UTENTI&#xa;" style="text;strokeColor=#d6b656;fillColor=#fff2cc;align=left;verticalAlign=top;spacingLeft=2;spacingRight=0;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;fontSize=18;labelBackgroundColor=none;spacingTop=0;spacing=0;" parent="1" vertex="1">
+          <mxGeometry x="46" y="130" width="746" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-1" value="NODES" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="100" y="410" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-2" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="6QmAQZpg1GYG0cM4SqcZ-1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="80" y="750" as="sourcePoint" />
+            <mxPoint x="160" y="520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-3" value="USERS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="540" y="410" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-4" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="6QmAQZpg1GYG0cM4SqcZ-3">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="696" y="750" as="sourcePoint" />
+            <mxPoint x="600" y="520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-5" value="" style="endArrow=classic;html=1;rounded=0;fontSize=20;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="drOMGNEiGwaOuBoNa-Xe-4" target="6QmAQZpg1GYG0cM4SqcZ-3">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="390" y="490" as="sourcePoint" />
+            <mxPoint x="520" y="390" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-6" value="" style="endArrow=classic;html=1;rounded=0;fontSize=20;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="drOMGNEiGwaOuBoNa-Xe-4" target="6QmAQZpg1GYG0cM4SqcZ-1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="410" y="410" as="sourcePoint" />
+            <mxPoint x="460" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-8" value="-inserire proprio pid nell&#39;array della&#xa;  memoria condivisa dedicata al&#xa;  controllo dei nodi&#xa;-inizializzazione translation pool&#xa;-inizializzazione del semaforo&#xa;  per il controllo della translation&#xa;  pool&#xa;-attesa non attiva per la ricezione&#xa;  delle transazione da USERS&#xa;" style="text;strokeColor=#9673a6;fillColor=#e1d5e7;align=left;verticalAlign=top;spacingLeft=2;spacingRight=0;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;fontSize=18;labelBackgroundColor=none;spacingTop=0;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="44" y="520" width="326" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="6QmAQZpg1GYG0cM4SqcZ-9" value="-inserire proprio pid nell&#39;array della&#xa;  memoria condivisa dedicata al&#xa;  controllo degli USERS&#xa;-calcola bilancio corrente&#xa;-estrae:&#xa;    #processo utente a cui inviare denaro&#xa;    #processo nodo a cui inviare transazione&#xa;    #calcola a caso il REWARD&#xa;-verifica di poter scrivere nel nodo&#xa;-ricomincia da capo, quando non riesce&#xa;  a scrivere muore.&#xa;&#xa;" style="text;strokeColor=#6c8ebf;fillColor=#dae8fc;align=left;verticalAlign=top;spacingLeft=2;spacingRight=0;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;fontSize=18;labelBackgroundColor=none;spacingTop=0;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="430" y="520" width="370" height="460" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
