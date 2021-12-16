@@ -97,4 +97,11 @@ INFORMAZIONI IMPLEMENTATIVE STRUTTURE DA USARE:?
 		Array necessario in quanto è richiesto di specificare nella transazione chi è il sender(basta un getpid()) e
 		chi è il receiver(valore che dovremo estrarre casualmente da una pool(array?) di possibili destinatari)
 	
+	-SHARED MEMORY
+		Eseguendo una shmget(key, spazio, flag) il sistema ci alloca uno spazio di memoria che risulta essere
+		un multiplo della lunghezza della pagina di sistema e di conseguenza lo dimensione stabilita nella
+		shmget non impone un limite e il sistema non ci restituisce errore nel caso lo oltrepassassimo.
+		La shmget si comporta analogamente ad una calloc settando la memoria richiesta a 0, eventuali celle 
+		di memoria ulteriori contengono valori arbitrari.
+		Il LIMITE della memoria allocata va quindi gestito dallo sviluppatore.
 	
