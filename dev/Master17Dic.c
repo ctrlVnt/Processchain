@@ -169,7 +169,7 @@ int main()
 		printf("\nLa shared memory dell'array contenente gli ID delle message queue è: %d\n", shmIdUtente);
 		#endif	
 
-	/*FOOOOOOOOOOOOOOOOOOOOOORK*/
+	/*FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOORK*/
 	/*
   	for (i=0; i<SO_NODES_NUM; i++) {
 
@@ -196,7 +196,6 @@ int main()
 		{
 
 		case -1:
-			/* Handle error */
 			fprintf(stderr, "%s, %d: Errore (%d) nella fork\n",
 					__FILE__, __LINE__, errno);
 			exit(EXIT_FAILURE);
@@ -225,8 +224,9 @@ int main()
 			exit(12345);
 			#endif
 
-	/*CHIUSURA LIBRO MASTRO*/
+            
 
+	/*CHIUSURA LIBRO MASTRO*/
 	shmctl(shmIdMastro, IPC_RMID, 0);
 	TEST_ERROR;
 }
