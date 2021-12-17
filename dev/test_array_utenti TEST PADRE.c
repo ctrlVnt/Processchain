@@ -64,31 +64,12 @@ int main(){
 			exit(EXIT_FAILURE);
 			
 		case 0:
-			my_pid = getpid();
-			/*my_ppid = getppid();
-			printf("CHILD:  PID=%d, PPID=%d, fork_value=%d\n", my_pid, my_ppid, value);*/
-			printf("Sono il figlio %d e sto scrivendo nell'array generato in pos: %d\n", my_pid,i);
-			sleep(1);
-			/*faccio attach della memoria condivisa*/
-			arrayUtenti = (int *)shmat(shm_ID, NULL, 0);	
-				
-				sops.sem_op = -1;		/*riservo il semaforo*/
-				semop(sem_ID, &sops, 1);
-				TEST_ERROR;
-
-				*(arrayUtenti+i) = my_pid;
-				
-				sops.sem_op = 1;       /*rilascio il semaforo*/
-				semop(sem_ID, &sops, 1); 
-				TEST_ERROR;
-			
-			/*Ciascun figlio deve memorizzare nell'array il proprio pid in posizione uguale all'indice i*/
+			printf("Sono il figlio %d e sto scrivendo nell'array generato in pos: %d\n", getpid(),i);
 			exit(EXIT_SUCCESS);
 		break;
 		default:
-			/*my_pid = getpid();
-			my_ppid = getppid();
-			printf("PARENT: PID=%d, PPID=%d, fork_value=%d\n", my_pid, my_ppid, value);*/
+		
+			*(arrayUtenti+i) = value;
 		break;
 		}
 	}
