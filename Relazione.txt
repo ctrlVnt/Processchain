@@ -1,0 +1,39 @@
+PROCESSCHAIN
+
+Per il progetto di sistemi operativi bisogna simulare un sistema di pagamenti tra vari processi e
+averne i risultati all'interno di un libro mastro.
+
+Il nome del progetto è stato deciso per indicare una relazione "a catena" tra i processi richiamando,
+appunto, la block-chain, meccanismo sfruttato dalle criptovalute.
+
+L'intero programma inizia eseguendo il Master (file "Master.c"), dove al suo interno sono definite le varie
+macro necessarie per l'esecuzione e vengono prelevate anche le variabili da un file esterno.
+Come INPUT di questi si è scelto di parsificare i parametri da un file TXT, chiamato "parameters.txt"
+(la scelta dell'estensione del file e' arbitraria) secondo il seguente pattern: NOME_VARIABILE = valore dove
+il carattere '=' è il delimitatore.
+
+Come funziona la lettura dal file quindi?
+- File viene aperto in lettura
+- Viene parsificato per riga, ovvero sequenza il cui carattere finale è '\n',
+per questo motivo abbiamo utilizzato la funzione fgets (man fgets per approfondimenti) che accumula nel buffer i caratteri finche' non raggiunge CR('\n') oppure EOF
+-Ogni blocco cosi' letto viene tokennizato -- funzione strtok che prende due paramteri: stringa da espezionare e il delimitatore, che non e' altro che una stringa
+indicante quali byte di caratteri sono consedirati delimitatori, quindi restituisce il puntatore a stringa che contenuta tra caratteri-delimitatori, 
+quando non ci sono piu' token utili, viene restituito NULL (man strtok per approfondimenti)
+-Considerando il pattern della stringa otteuta da fgets, possiamo desumenre che ad ogni lettura, successivamente vengono generati 2 token(in condizioni ottimali):
+primo rappresenta il nome della variabile a cui vogliamo assegnare il valore che segue, la discriminazione delle variabile e' effettuata tramite la funzione strcmp
+che ritorna 0 se le 2 stringhe passate come argomento sono lessicograficamente identiche. (man strcmp per approfondimenti)
+-Token successivo che viene ricevuto non e' altro che il valore, che a sua volta viene castato con la funzione atoX, in base al tipom di valore, che puo' essere
+un intero oppure un intero long -- attenzione atoX non gestiscono eventuali errori!
+-La lettura viene effettuata fino al raggiungimento della fine del FILE(EOF).
+-Quindi i parametri cosi' ottenuti vengono stampati a video.
+
+In caso di errore parsing, il file viene chiuso e il programma termina.
+
+Acquisite le nostre variabili globali, dove la scelta di renderle tali dipende dal fatto che non ci interessa che questi valori vengano copiati all'interno dei figli,
+inizializiamo le aree di memoria condivisa e i semafori che serviranno, quali:
+-memoria condivisa per libro mastro dove i processi utente leggeranno e i processi nodo scriveranno le transazioni;
+-memoria condivisa per l'indice che servirà ai processi a leggere le varie transazioni senza dover ricontrollare da capo ad ogni esecuzione;
+-memoria condivisa per array ID coda di messaggi, dove ogni processo utente scriverà la sua transazione;
+-memoria condivisa per array PID processi utente, che serviranno per l'estrazione iniziale degli stessi;
+-semafori per l'invio delle transazioni da parte degli utenti, per dare ordine a queste impedendo che più utenti inviino trnsazioni contemporaneamente allo stesso nodo.
+
