@@ -104,4 +104,15 @@ INFORMAZIONI IMPLEMENTATIVE STRUTTURE DA USARE:?
 		La shmget si comporta analogamente ad una calloc settando la memoria richiesta a 0, eventuali celle 
 		di memoria ulteriori contengono valori arbitrari.
 		Il LIMITE della memoria allocata va quindi gestito dallo sviluppatore.
+		
+
+PROBLEMI VERSIONE NORMAL:
+	-CREAZIONE NUOVI NODI: dobbiamo gestire il fatto di creare nuovi nodi a richiesta e allocare nuova memoria per l'array dei nodi
+	
+	INVIARE UN SEGNALE?? -> inizializzare varie strutture 
+
+
+
+
+
 	
