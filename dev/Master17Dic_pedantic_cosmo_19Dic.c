@@ -77,6 +77,14 @@ int main(){
     int semSetMsgQueueId;
 	struct sembuf sops;
     union semun semMsgQueueUnion;      /*union semctl*/
+    unsigned short *semMsgQueueValArr;  /*dichiaro array di union semctl*/
+	int i;
+	transazione *libroMastro;  /*puntatore matrice libro mastro*/
+		/*SOLO PER TEST*/
+		#if(ENABLE_TEST)
+		union semun TEST_GETALL;
+		unsigned short *TEST_GETALL_ARRAY; 
+		#endif
     
     	/* SOLO PER TEST ->però read_all_parameters() necessaria a prescindere */
 		#if(ENABLE_TEST)
@@ -84,15 +92,14 @@ int main(){
 			fprintf(stderr, "Parsing failed!");
 		}
 		#endif
-    
-    unsigned short semMsgQueueValArr[SO_NODES_NUM];  /*dichiaro array di union semctl*/
-	int i;
-
-    /*SOLO PER TEST*/
-    #if(ENABLE_TEST)
-    union semun TEST_GETALL;
-    unsigned short TEST_GETALL_ARRAY[SO_NODES_NUM]; 
-    #endif
+		
+	/*inizializzo array usando calloc con valore letto da file.txt causa std=c89 che non
+	  permette di dichiarare un array con lunghezza, cioè -> array[lunghezza]*/
+	  #if(ENABLE_TEST)
+	  TEST_GETALL_ARRAY = calloc(SO_NODES_NUM, sizeof(int));
+	  #endif
+	  /*alloco memoria array*/
+	  semMsgQueueValArr = calloc(SO_NODES_NUM, sizeof(int));
 
 	/*Inizializzazione memoria condivisa per libro mastro*/
 	shmIdMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
@@ -109,7 +116,7 @@ int main(){
 		#endif
 
 	/* Attach del libro mastro alla memoria condivisa*/
-	transazione *libroMastro = (transazione *)shmat(shmIdMastro, NULL, 0);
+	libroMastro = (transazione *)shmat(shmIdMastro, NULL, 0);
 	TEST_ERROR;
 
 	/*inizializzazione memoria condivisa array ID coda di messaggi*/
@@ -141,7 +148,8 @@ int main(){
     /*Popolo array valore semafori */
     for(i = 0; i < SO_NODES_NUM; i++){
         semMsgQueueValArr[i] = SO_TP_SIZE;
-        printf("Valore indice %d = %d\n", i, semMsgQueueValArr[i]);
+        /*test riempimento array -> si può togliere
+        printf("Valore indice %d = %d\n", i, semMsgQueueValArr[i]);*/
     }
 
     /*assegno array valori semafori alla union*/
@@ -205,7 +213,10 @@ int main(){
 				#if(ENABLE_TEST)
 				printf("sono il figio: %d, in posizione: %d\n", getpid(), i);
 				#endif
-
+			
+			/*-----------------------------AGGIUNTA 19 Dicembre--------------------------------*/
+			
+			/*-----------------------------FINE AGGIUNTA 19 Dicembre--------------------------------*/
 			exit(EXIT_SUCCESS);
 			break;
 
@@ -233,18 +244,19 @@ int main(){
 
 int read_all_parameters()
 {
-    char buffer[256] = {};
+    char buffer[256];/*={}*/
     char *token;
     char *delimeter = "= ";
     int parsedValue;
-    bzero(buffer, 256);
     FILE *configFile = fopen("parameters.txt", "r+");
     int closeResponse;
+    
+    bzero(buffer, 256);
     
     if (configFile != NULL)
     {
         /* printf("File aperto!\n");*/
-        while (fgets(buffer, 256, configFile) > 0)
+        while (fgets(buffer, 256, configFile) != NULL) /*comparazione diretta tra fgets e 0 non concessa in pedantic*/
         {
             token = strtok(buffer, delimeter);
             if(strcmp(token, "SO_USERS_NUM") == 0)
