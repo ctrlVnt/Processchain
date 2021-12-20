@@ -103,14 +103,17 @@ for (i=0; i<SO_USERS_NUM; i++) {
 			/*sincronizzazione fasulla in attesa di Boris*/
 			sleep(1);
 			budgetUtente = SO_BUDGET_INIT;
+			/*ESEGUO ATTACH ARRAY DI CODE MSG FUORI DA EVENTUALE FUNZIONE PER INVIO TRANSAZIONE*/	
+			shmIdNodo = shmget(12345, SO_NODES_NUM*sizeof(int), 0600 | IPC_CREAT);
+			arrayNodeMsgQueuePtr = (int *)shmat(shmIdNodo, NULL, 0);    /*eseguo attach per accedere l'array di ID di code di messaggi*/
+
 			/*-----------------------------AGGIUNTA 19 Dicembre--------------------------------*/
 			if(budgetUtente >= 2){
-				/*ESEGUO ATTACH ARRAY DI CODE MSG FUORI DA EVENTUALE FUNZIONE PER INVIO TRANSAZIONE*/	
-				shmIdNodo = shmget(12345, SO_NODES_NUM*sizeof(int), 0600 | IPC_CREAT);
-				arrayNodeMsgQueuePtr = (int *)shmat(shmIdNodo, NULL, 0);    /*eseguo attach per accedere l'array di ID di code di messaggi*/
 				/*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
 				srand(getpid());
 				nodoScelto = rand()%SO_NODES_NUM;
+				/*VERIFICO DISPONIBILITÀ NODO*/
+				
 				/*printf("Io utente %d ho scelto il nodo in pos %d\n", getpid(), nodoScelto);*/
 				/*riempio transazione per l'invio*/
 				transazioneInvio.sender = getpid();
@@ -153,7 +156,7 @@ for (i=0; i<SO_USERS_NUM; i++) {
 				printf("%d BUDGET RIMANENTE %d\n", i, budgetUtente); */
 			/*-----------------------------FINE CREAZIONE TRANSAZIONE-------------------------------*/
 			/*-----------------------------CREAZIONE MESSAGGIO DA INVIARE-------------------------------*/
-				messaggio.mtype = 10;
+				messaggio.mtype = 1;
 				messaggio.transazione = transazioneInvio;
 				msgsnd(*(arrayNodeMsgQueuePtr+nodoScelto), &messaggio, TRANSACTION_SIZE, IPC_NOWAIT);
 				TEST_ERROR;

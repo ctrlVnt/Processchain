@@ -99,6 +99,12 @@ semop(semSyncStartId, &sops, 1);
     sops.sem_op = 0;
     semop(semSyncStartId, &sops, 1);
 
+//parent farà
+    sops.sem_flg = 0;
+    sops.sem_num = 0;
+    sops.sem_op = -1;
+    semop(semSyncStartId, &sops, 1)
+
 4. CALCOLO DEL BILANCIO
 /*
 La seguente funzione restituisce il bilancio dell'utente.
