@@ -130,6 +130,7 @@ int nodo = 1; /*Negli utenti nodo == 0*/
     int childStatus;
     int soRetry;
     int nodoScelto;
+    int tpPiena;  /*variabile che indica lo stato di riempimento della transaction pool*/
     transazione transazioneInvio;
     struct timespec timestampTransazione; /*struct per invio transazione*/
     int quantita;                         /*denaro totale da inviare*/
@@ -154,8 +155,9 @@ void attesaNonAttiva(long, long);
 void signalHandler(int);
 
 int main()
-{
-
+{	
+	/*indice test vari -> da cancellare poi*/
+	int a;
  
 /*SOLO PER TEST*/
 #if (ENABLE_TEST)
@@ -333,14 +335,22 @@ int main()
             while (nodo)
             {   
                 /*quando il semaforo è verde si riempie la Tp*/
-                while (semctl(semSetMsgQueueId, j, GETVAL))
+                /*esplicitando la condizione di uscita il valore del semaforo viene beccato dal while*/
+                /*causa scheduler forse converrebbe aggiungere una condizione nel while es -> tpSize == SO_TP_SIZE
+                  con tpSize++ ad ogni inserimento nella transaction pool*/
+                while (tpPiena < SO_TP_SIZE)
                 { 
                     printf("valore semaforo j :%d\n",semctl(semSetMsgQueueId, j, GETVAL));
                     TEST_ERROR;
                     /*SOLUZIONE ALTERNATIVA: if con continue*/
                     /*riceve il messaggio nella propria coda di messaggi*/
                     msgrcv(shmArrayNodeMsgQueuePtr[j], &myMsg, sizeof(transazione), 0, 0);
+                    #if(ENABLE_TEST)
+                    /*controllo che nessuna transazione letta venga sovrascritta in qualche modo*/
+                    printf("Valore quantita transazione appena letta: %d\n",myMsg.transazione.quantita);
+                    #endif
                     TEST_ERROR;
+                    tpPiena++;
                     printf("mtype: %ld\n",myMsg.mtype);
                     
 
@@ -351,16 +361,37 @@ int main()
                         indiceTpCellaLibera = 0;
                     }
                 }
+                /*esegue la stampa*/
+                #if(ENABLE_TEST)
+                printf("Stampo stato transaction pool\n");
+                /*per un test corretto non devo avere valori quantita == 0 -> quantita che viene scartata durante la creazione
+                  della transazione e di conseguenza mai inviata*/
+                for(a = 0; a < SO_TP_SIZE; a++){
+                	printf("TP indice: %d con quantita: %d\n", a, transactionPool[a].quantita);
+                }
+                printf("Comincio riempimento blocco\n");
+                #endif
+                
                 /*semaforo è diventato zero e ora devo riempire il blocco*/
                 for (i = 0; i < SO_BLOCK_SIZE - 1; i++)
                 {
                     bloccoInvio[i] = transactionPool[indiceTpInvioBlocco++];
-                    if (indiceTpInvioBlocco = SO_TP_SIZE)
+                    #if(ENABLE_TEST)
+                    printf("Valore indiceTpInvioBlocco: %d\n",indiceTpInvioBlocco);
+                    printf("Ho inserito in pos: %d, una transazione con quantita': %d\n",i, bloccoInvio[i].quantita);
+                    #endif
+                    if (indiceTpInvioBlocco == SO_TP_SIZE) /*mancava un ... di uguale e riempiva sempre con la stessa transazione*/
                     {
                         indiceTpInvioBlocco = 0;
                     }
                 }
-
+                /*Controllo che il riempimento del blocco sia avvenuto con successo*/
+				#if(ENABLE_TEST)
+                printf("Terminato il riempimento del blocco\n");
+                for(a = 0; a < SO_BLOCK_SIZE; a++){
+                	printf("Ho inserito in pos: %d, una transazione con quantita': %d\n",a, bloccoInvio[a].quantita);
+                }
+                #endif
                 attesaNonAttiva(SO_MIN_TRANS_PROC_NSEC, SO_MAX_TRANS_PROC_NSEC);
                 /*send al libr mastro e liberare risorse da semaforo*/
                 sops.sem_flg = 0;
@@ -383,18 +414,26 @@ int main()
                 for (i = 0; i < SO_BLOCK_SIZE; i++)
                 {
                     /*copia transazione I-esima da bloccoInvio nel Libro Mastro*/
-                    shmLibroMastroPtr[*(shmIndiceBloccoPtr) + i] = bloccoInvio[i];
+                   // shmLibroMastroPtr[*(shmIndiceBloccoPtr) + i] = bloccoInvio[i];
+                   /*formula che aveva spiegato DE PIERRO per il riempimento della matrice*/
+                  /* *(shmLibroMastroPtr + (*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + i)) = bloccoInvio[i];*/
+                  shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + i] = bloccoInvio[i];
                 }
+                
+                /*Controllo di aver riempito il libro mastro in maniera corretta*/
+                #if(ENABLE_TEST)
+                	sleep(1);
+                	for(a = 0; a < SO_BLOCK_SIZE; a++){
+                		printf("LIBRO MASTRO in pos: %d con quantita: %d\n", a, shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + a].quantita);
+                		//printf("LIBRO MASTRO in pos: %d con quantita: %d\n", a, shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + a].quantita);
+                	}
+                #endif
 
                 /*aggiornamento dell'indice*/
-                *(shmIndiceBloccoPtr)++;
-
-                /*incremento il valore del semaforo, cosi' sblocco la scrittura sulla coda di messaggi da parte degli utenti*/
-                sops.sem_flg = 0;
-                sops.sem_num = j;
-                sops.sem_op = SO_BLOCK_SIZE-1;
-                semop(semSetMsgQueueId, &sops, 1);
-                TEST_ERROR;
+                *(shmIndiceBloccoPtr) += 1;
+                #if(ENABLE_TEST)
+                printf("Valore indice blocco: %d\n", *(shmIndiceBloccoPtr));
+                #endif
 
                 /*rilascio delle risorse */
                 sops.sem_flg = 0;
@@ -402,11 +441,19 @@ int main()
                 sops.sem_op = 1;
                 semop(semLibroMastroId, &sops, 1);
                 TEST_ERROR;
+                
+                /*incremento il valore del semaforo, cosi' sblocco la scrittura sulla coda di messaggi da parte degli utenti*/
+                sops.sem_flg = 0;
+                sops.sem_num = j;
+                sops.sem_op = SO_BLOCK_SIZE-1;
+                semop(semSetMsgQueueId, &sops, 1);
+                TEST_ERROR;
+                tpPiena -= SO_BLOCK_SIZE-1;
             }
 
             /*chiusura coda di messaggi*/
-            /*STAMPO transazioni non spedite ma salvate nella TP*/
-            printf("%d di transazioni rimasti no gestite nella TP", SO_TP_SIZE - semctl(semSetMsgQueueId, j, GETVAL));
+            /*STAMPO transazioni non spedite ma salvate nella TP -> lo faccio nel handler quindi da togliere*/
+           /* printf("%d di transazioni rimasti no gestite nella TP", SO_TP_SIZE - semctl(semSetMsgQueueId, j, GETVAL));*/
             TEST_ERROR;
             msgctl(*(shmArrayNodeMsgQueuePtr + j), IPC_RMID, NULL);
             exit(EXIT_SUCCESS);
@@ -456,6 +503,7 @@ int main()
             act.sa_handler = signalHandler;
             act.sa_flags = 0;
             sigaction(SIGUSR2, &act, &actOld);
+          /*  sigaction(SIGUSR1, &act, &actOld);*/
 
             /*avviso il PARENT*/
             sops.sem_flg = 0;
@@ -511,6 +559,7 @@ int main()
                             reward = 1;
                         }
                         transazioneInvio.reward = reward;
+                        transazioneInvio.quantita = quantita - reward;
                         /*sottraggo denaro appena inviato al mio budget*/
                         SO_BUDGET_INIT -= quantita;
                         /*creo messaggio da inviare sulla coda di messaggi*/
@@ -526,7 +575,7 @@ int main()
                         /*smaschera - SIGINT, SIGSTOP*/
 
 #if (ENABLE_TEST)
-                        printf("%d ID CODA DI MESSAGGI A CUI INVIO %d\n", getpid(), *(shmArrayNodeMsgQueuePtr + nodoScelto));
+                        printf("%d ID CODA DI MESSAGGI A CUI INVIO %d VALORE: %d\n", getpid(), *(shmArrayNodeMsgQueuePtr + nodoScelto), transazioneInvio.quantita);
 #endif
                         /*todo attesa*/
                         /*release delle risorse da mettere nel nodo*/
@@ -568,17 +617,28 @@ int main()
         printf("PID utente %d = %d\n", i, shmArrayUsersPidPtr[i].userPid);
     }
 #endif
+
+	sleep(3);
     /*CONTROLLO indice libro mastro, se == SO_REGISTRY_SIZE allora mando segnale per terminare tutto */
-    if( *(shmIndiceBloccoPtr) == SO_REGISTRY_SIZE){
-        for(i = 0; i < SO_NODES_NUM; i++){
-            kill(childNodePidArray[i], SIGUSR1);
-        }
-        for(i = 0; i < SO_USERS_NUM; i++){
-            if(shmArrayUsersPidPtr[i].stato != USER_KO){
-                kill(shmArrayUsersPidPtr[i].userPid, SIGUSR1);
-            }
-        }
-    }
+    /*introduco controllo periodico capacità libro mastro, qui dovremo mettere anche le varie stampe intermedie*/
+    int master = 1;
+    while(master){
+    	sleep(1);
+    	/*STAMPO STATO DEL REGISTRO*/
+		if( *(shmIndiceBloccoPtr) == SO_REGISTRY_SIZE){
+		/*STAMPO CONDIZIONI DI USCITA*/
+		printf("valore shmIndiceBlocco %d\n", *(shmIndiceBloccoPtr));
+		master = 0;
+		    for(i = 0; i < SO_NODES_NUM; i++){
+		        kill(childNodePidArray[i], SIGUSR1);
+		    }
+		    for(i = 0; i < SO_USERS_NUM; i++){
+		        if(shmArrayUsersPidPtr[i].stato != USER_KO){
+		            kill(shmArrayUsersPidPtr[i].userPid, SIGUSR1);
+		        }
+		    }
+		}
+	}
     /*CHIUSURA LIBRO MASTRO*/
     /*dealloco tutte le strutture*/
     shmctl(shmIdMastro, IPC_RMID, 0);
@@ -733,6 +793,7 @@ int calcoloDenaroInvio(int budget)
 {
     int res = 0;
     srand(getpid());
+    /*suppongo che la transazione minima abbia quantita == 1 e reward == 1*/
     while ((res = rand() % budget) <= 1)
     {
         res = rand() % budget;
@@ -797,4 +858,5 @@ void signalHandler(int sigNum)
 3.Il master deve stampare ogni secondo il bilancio di tutti i nodi presenti sul REGSTRO - X
 4.Mascherare i segnali prima e smascherarli subito dopo dell'attesa - V
 5.Aggiungere tempi di attesa - V
+6.Creare transazione di reward del nodo
 */
