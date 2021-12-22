@@ -158,6 +158,7 @@ int main()
 {	
 	/*indice test vari -> da cancellare poi*/
 	int a;
+    tpPiena = 0;
  
 /*SOLO PER TEST*/
 #if (ENABLE_TEST)
