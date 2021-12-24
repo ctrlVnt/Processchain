@@ -68,6 +68,7 @@ typedef struct utente_ds
 {
     int stato;
     int userPid;
+    int bilancio;
 } utente;
 
 /*PER READ ALL PARAMETERS*/
@@ -164,23 +165,16 @@ void attesaNonAttiva(long, long);
 /*handler*/
 void signalHandler(int);
 /*calcolo del bilancio*/
-int calcoloBilancio(pid_t pid);
-/*Lo uso solo per la stampa*/
-int* bilancioPerStampaUsers(int *array);
-int bilancioPerStampaNodes(int *array);
+int calcoloBilancio();
+/*solo quando fa una prova*/
+int attesaRicezione();
 
 int main()
 {
     /*indice test vari -> da cancellare poi*/
     int a;
     tpPiena = 0;
-#if(ENABLE_TEST == 0)    /*per bilancioPerStampa*/
-    int *arrayStampaUsers;
-    int *arrayStampaNodes;
 
-    arrayStampaUsers = (int *)calloc(SO_USERS_NUM * 2, sizeof(int));
-    arrayStampaNodes = (int *)calloc(SO_NODES_NUM * 2, sizeof(int));
-#endif
 /*SOLO PER TEST*/
 #if (ENABLE_TEST)
     union semun TEST_GETALL;
@@ -500,10 +494,7 @@ int main()
             exit(EXIT_SUCCESS);
         default:
             childNodePidArray[i] = childPid;
-#if(ENABLE_TEST == 0)
-            arrayStampaNodes[i] = childPid;
-            arrayStampaNodes[SO_NODES_NUM + i] = SO_BUDGET_INIT;
-#endif
+
 #if (ENABLE_TEST)
             printf("Child NODE %d e' stato creato e memorizzato nella struttura\n", childNodePidArray[i]);
 #endif
@@ -572,12 +563,11 @@ int main()
 #if(ENABLE_TEST)
                 printf("[%d]BUDGET BEGIN = %d\n", getpid(), SO_BUDGET_INIT);
 #endif
-                /*CALCOLO BILANCIO UTENTE*/
-                SO_BUDGET_INIT += calcoloBilancio(getpid());
+                /*CALCOLAVO BILANCIO UTENTE*/
 #if(ENABLE_TEST)
                 printf("[%d]Verifico budget -> %d\n", getpid(), SO_BUDGET_INIT);
 #endif
-                if (SO_BUDGET_INIT >= 2)
+                if (shmArrayUsersPidPtr[i].bilancio >= 2)
                 {
                     /*printf("Cerco di riservare il semaforo\n");*/
                     /*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
@@ -608,7 +598,7 @@ int main()
                         clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
                         /*printf("Ho impostato il timestamp%d\n", getpid());*/
                         transazioneInvio.timestamp = timestampTransazione;
-                        quantita = calcoloDenaroInvio(SO_BUDGET_INIT);
+                        quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
                         /*printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);*/
 #if(ENABLE_TEST)
                         printf("[%d] Invio %d\n", getpid(), quantita);
@@ -623,8 +613,6 @@ int main()
 #if(ENABLE_TEST)
                         printf("[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
 #endif
-                        /*sottraggo denaro appena inviato al mio budget*/
-                        SO_BUDGET_INIT -= quantita;
                         /*creo messaggio da inviare sulla coda di messaggi*/
                         messaggio.mtype = getpid();
                         messaggio.transazione = transazioneInvio;
@@ -648,6 +636,7 @@ int main()
                         semop(semSetMsgQueueId, &sops, 1);*/
                         /*todo attesa*/
                         /*release delle risorse da mettere nel nodo*/
+                        shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();
                     }
                 }
                 else
@@ -657,6 +646,7 @@ int main()
 #endif
                     soRetry--;
                     sleep(1);
+                    shmArrayUsersPidPtr[i].bilancio = attesaRicezione();
                 }
                 /*printf("5.INIZIO NUOVO CICLO CREAZIONE TRANSAZIONE %d\n", getpid());*/
             }
@@ -671,10 +661,7 @@ int main()
             /* riempimento array PID utenti nella memoria condivisa */
             shmArrayUsersPidPtr[i].stato = USER_OK;
             shmArrayUsersPidPtr[i].userPid = childPid;
-#if(ENABLE_TEST == 0)
-            arrayStampaUsers[i] = childPid;
-            arrayStampaUsers[SO_USERS_NUM + i] = SO_BUDGET_INIT;
-#endif
+            shmArrayUsersPidPtr[i].bilancio = SO_BUDGET_INIT;
             break;
         }
     }
@@ -704,48 +691,40 @@ int main()
     /*introduco controllo periodico capacità libro mastro, qui dovremo mettere anche le varie stampe intermedie*/
     int master = 1;
     int status = 0;
-    int b;
-    int c;
-    int f;
     int pidmax;
     int max;
     int min;
     int pidmin;
-    int *stamp;
-    stamp = (int*)calloc(SO_USERS_NUM*2, sizeof(int));
+    int b;
+    int c;
     min = SO_BUDGET_INIT;
     while (master)
     {
 #if(ENABLE_TEST == 0)
         sleep(1);
-        for(b = 0; b < SO_USERS_NUM; b++){
-            stamp[b] = arrayStampaUsers[b];
-            stamp[SO_USERS_NUM + b] = arrayStampaUsers[SO_USERS_NUM + b];
-        }
         max = 0;
         printf("\nPROCESSI UTENTE ATTIVI: %d\n", contatoreUtentiVivi);
         printf("PROCESSI NODO ATTIVI: %d\n", SO_NODES_NUM);
-        stamp = bilancioPerStampaUsers(stamp);
+        
         printf("\n");
         if(SO_USERS_NUM < 20){
             for (b = 0; b < SO_USERS_NUM; b++){
-                printf("P.UTENTE [%d] ha bilancio di: %d\n", stamp[b], stamp[SO_USERS_NUM + b]);
+                printf("P.UTENTE [%d] ha bilancio di: %d\n", shmArrayUsersPidPtr[b].userPid, shmArrayUsersPidPtr[b].bilancio);
             }
         }else{
             for (b = 0; b < SO_USERS_NUM; b++){
-                if(stamp[SO_USERS_NUM + b] > max){
-                    pidmax = stamp[b];
-                    max = stamp[SO_USERS_NUM + b];                    
+                if(shmArrayUsersPidPtr[b].bilancio > max){
+                    pidmax = shmArrayUsersPidPtr[b].userPid;
+                    max = shmArrayUsersPidPtr[b].bilancio;                    
                 }
-                if(stamp[SO_USERS_NUM + b] <= min){
-                    pidmin = stamp[b];
-                    min = stamp[SO_USERS_NUM + b];
+                if(shmArrayUsersPidPtr[b].bilancio <= min){
+                    pidmin = shmArrayUsersPidPtr[b].userPid;
+                    min = shmArrayUsersPidPtr[b].bilancio; 
                 }
             }
             printf("P.UTENTE MAX [%d] ha bilancio di: %d\n", pidmax, max);
             printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin, min);
         }
-        printf("\bBILANCIO NODI: %d\n", bilancioPerStampaNodes(arrayStampaNodes));
         printf("\n");
 #endif
 
@@ -1042,45 +1021,34 @@ void userTermPremat(int sigNum)
     contatoreUtentiVivi--;
 }
 
-int calcoloBilancio(pid_t pid){
-    int sum = 0;
+int calcoloBilancio(){
+    SO_BUDGET_INIT -= quantita;
     while(contoPidTrovati < *(shmIndiceBloccoPtr)){
-        if (pid == shmLibroMastroPtr[contoPidTrovati].receiver ){
-            sum += shmLibroMastroPtr[contoPidTrovati].quantita;
+        if (getpid() == shmLibroMastroPtr[contoPidTrovati].receiver ){
+            SO_BUDGET_INIT += shmLibroMastroPtr[contoPidTrovati].quantita;
 #if(ENABLE_TEST)
-            printf("\nTROVATO, pid %d per sum = %d\n", shmLibroMastroPtr[contoPidTrovati].receiver, sum);
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[contoPidTrovati].receiver, SO_BUDGET_INIT);
 #endif
         }
         contoPidTrovati++;
     }
-    return sum;
+
+    return SO_BUDGET_INIT;
 }
 
-int* bilancioPerStampaUsers(int *array){
-    int u;
-    int z;
-    for (u = 0; u < *(shmIndiceBloccoPtr);u++){
-        for (z = 0; z < SO_USERS_NUM; z++){
-            if (array[z] == shmLibroMastroPtr[u].receiver){
-                array[SO_USERS_NUM + z] += shmLibroMastroPtr[u].quantita;
-            }
-            if (array[z] == shmLibroMastroPtr[u].sender){
-                array[SO_USERS_NUM + z] -= shmLibroMastroPtr[u].quantita;
-            }
+int attesaRicezione(){
+    while(contoPidTrovati < *(shmIndiceBloccoPtr)){
+        if (getpid() == shmLibroMastroPtr[contoPidTrovati].receiver ){
+            SO_BUDGET_INIT += shmLibroMastroPtr[contoPidTrovati].quantita;
+#if(ENABLE_TEST)
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[contoPidTrovati].receiver, SO_BUDGET_INIT);
+#endif
         }
+        contoPidTrovati++;
     }
-    return array;
-}
 
-int bilancioPerStampaNodes(int *array){
-    int x;
-    int sum = 0;
-    for (x = 0; x < *(shmIndiceBloccoPtr); x++){
-        sum += shmLibroMastroPtr[SO_BLOCK_SIZE*x].reward;
-    }
-    return sum;
+    return SO_BUDGET_INIT;
 }
-
 /*TODO
 1.modificare la funzione di attesa non attiva da usare sia per i nodi che per gli utenti - V
 2.funzione che calcola il budget dell'utente prima di inviare alcuna transazione - V
