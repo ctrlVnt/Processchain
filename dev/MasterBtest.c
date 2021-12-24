@@ -166,7 +166,7 @@ void attesaNonAttiva(long, long);
 void signalHandler(int);
 /*calcolo del bilancio*/
 int calcoloBilancio();
-/*solo quando fa una prova*/
+/*solo quando fa un SO_RETRY --*/
 int attesaRicezione();
 
 int main()
@@ -693,11 +693,10 @@ int main()
     int status = 0;
     int pidmax;
     int max;
-    int min;
-    int pidmin;
+    utente pidmin;
     int b;
     int c;
-    min = SO_BUDGET_INIT;
+    pidmin.bilancio = SO_BUDGET_INIT;
     while (master)
     {
 #if(ENABLE_TEST == 0)
@@ -717,13 +716,16 @@ int main()
                     pidmax = shmArrayUsersPidPtr[b].userPid;
                     max = shmArrayUsersPidPtr[b].bilancio;                    
                 }
-                if(shmArrayUsersPidPtr[b].bilancio <= min){
-                    pidmin = shmArrayUsersPidPtr[b].userPid;
-                    min = shmArrayUsersPidPtr[b].bilancio; 
+                /*ANCORA SBAGLIATO*/
+                if(shmArrayUsersPidPtr[b].bilancio <= pidmin.bilancio && shmArrayUsersPidPtr[b].stato != USER_KO){
+                    pidmin = shmArrayUsersPidPtr[b];
+                }
+                if(pidmin.stato == USER_KO){
+                    pidmin.bilancio = SO_BUDGET_INIT;
                 }
             }
             printf("P.UTENTE MAX [%d] ha bilancio di: %d\n", pidmax, max);
-            printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin, min);
+            printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin.userPid, pidmin.bilancio);
         }
         printf("\n");
 #endif
@@ -1000,8 +1002,50 @@ void signalHandler(int sigNum)
         exit(EXIT_SUCCESS);
         break;
     case SIGUSR2:
-        /*transazione t2;
-        creaTransazione(... + &t2); -- da IMPLEMENTARE evitando sovrascrivere la transazione in esecuzione*/
+        /* IPOTIZZATO INVIO CON SEGNALE
+                    srand(getpid());
+                    nodoScelto = rand() % SO_NODES_NUM;
+                    
+                    sops.sem_flg = IPC_NOWAIT;
+                    sops.sem_num = nodoScelto;
+                    sops.sem_op = -1;
+                    semop(semSetMsgQueueId, &sops, 1);
+
+                    if (errno != EAGAIN)
+                    {
+                        transazioneInvio.sender = getpid();
+                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM, getpid(), shmArrayUsersPidPtr);
+                        
+                        clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
+                        
+                        transazioneInvio.timestamp = timestampTransazione;
+                        quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
+                        
+#if(ENABLE_TEST)
+                        printf("[%d] Invio %d\n", getpid(), quantita);
+#endif
+                        reward = (quantita * SO_REWARD) / 100;
+                        if (reward == 0)
+                        {
+                            reward = 1;
+                        }
+                        transazioneInvio.reward = reward;
+                        transazioneInvio.quantita = quantita - reward;
+#if(ENABLE_TEST)
+                        printf("SIGUSR2[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
+#endif
+                        
+                        messaggio.mtype = getpid();
+                        messaggio.transazione = transazioneInvio;
+                        msgsnd(shmArrayNodeMsgQueuePtr[nodoScelto], &messaggio, sizeof(transazione), 0); 
+                        TEST_ERROR;
+                        soRetry = SO_RETRY;
+                        
+                        attesaNonAttiva(SO_MIN_TRANS_GEN_NSEC, SO_MAX_TRANS_GEN_NSEC);
+
+                        shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();
+                    }*/
+                        
 #if(ENABLE_TEST)
         printf("SONO HANDLER DELL'UTENTE!\n");
 #endif
