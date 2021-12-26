@@ -114,7 +114,7 @@ int semLibroMastroId;
 struct sembuf sops;
 union semun semMsgQueueUnion; /*union semctl*/
 /*ATTENZIONE: la riga seguente contiene del codice che non rispetta lo standard c89*/
-/*unsigned short semMsgQueueValArr[SO_NODES_NUM];  /*dichiaro array di union semctl*/
+/*unsigned short semMsgQueueValArr[SO_NODES_NUM]; dichiaro array di union semctl*/
 /*ALTERNATIVA - allocazione dinamica con la calloc*/
 unsigned short *semMsgQueueValArr;
 /***************************************************************/
@@ -734,7 +734,19 @@ int main()
             printf("P.UTENTE MAX [%d] ha bilancio di: %d\n", pidmax, max);
             printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin.userPid, pidmin.bilancio);
         }
-        if (SO_NODES_NUM >= 20){
+        if (SO_NODES_NUM < 20){
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                }
+
+                printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
+
+                if ( c < *shmIndiceBloccoPtr){
+                    c++;
+                }
+            }
+        }else{
             for(b = 0; b < SO_NODES_NUM; b++){
                 if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
                     childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
@@ -755,18 +767,6 @@ int main()
             }            
             printf("P.NODO MAX [%d] ha bilancio di: %d\n", childNodePidArray[y], nodeMax);
             printf("P.NODO MIN [%d] ha bilancio di: %d\n", childNodePidArray[j], nodeMin);
-        }else{
-            for(b = 0; b < SO_NODES_NUM; b++){
-                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
-                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
-                }
-
-                printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
-
-                if ( c < *shmIndiceBloccoPtr){
-                    c++;
-                }
-            }
         }
         printf("\n");
 #endif
