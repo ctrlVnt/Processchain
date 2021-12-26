@@ -709,22 +709,25 @@ int main()
                 printf("\n");
             }
             master = 0;
-            if (contatoreUtentiVivi <= 1)
-            {
+           /* if (contatoreUtentiVivi <= 1 || *(shmIndiceBloccoPtr) == SO_REGISTRY_SIZE )
+            {*/
                 for (i = 0; i < SO_NODES_NUM; i++)
                 {
                     kill(childNodePidArray[i], SIGUSR1);
                     TEST_ERROR;
                 }
-            }
-            for (i = 0; i < SO_USERS_NUM; i++)
-            {
-                if (shmArrayUsersPidPtr[i].stato != USER_KO)
+         /*  }*/
+         /*Ho tolto il controllo sull'ultimo figlio morto*/
+           
+                for (i = 0; i < SO_USERS_NUM; i++)
                 {
-                    kill(shmArrayUsersPidPtr[i].userPid, SIGUSR1);
-                    TEST_ERROR;
+                    if (shmArrayUsersPidPtr[i].stato != USER_KO)
+                    {
+                        kill(shmArrayUsersPidPtr[i].userPid, SIGUSR1);
+                        TEST_ERROR;
+                    }
                 }
-            }
+            
         }
     }
     /*sleep(20);*/
