@@ -114,7 +114,7 @@ int semLibroMastroId;
 struct sembuf sops;
 union semun semMsgQueueUnion; /*union semctl*/
 /*ATTENZIONE: la riga seguente contiene del codice che non rispetta lo standard c89*/
-/*unsigned short semMsgQueueValArr[SO_NODES_NUM];  /*dichiaro array di union semctl*/
+/*unsigned short semMsgQueueValArr[SO_NODES_NUM]; dichiaro array di union semctl*/
 /*ALTERNATIVA - allocazione dinamica con la calloc*/
 unsigned short *semMsgQueueValArr;
 /***************************************************************/
@@ -152,7 +152,7 @@ int *childNodePidArray; /*array contenente i pid dei processi NODI*/
 /*contatore di processi vivi*/
 int contatoreUtentiVivi;
 /*indice per calcolo bilancio*/
-int contoPidTrovati;
+int ultimoBloccoControllato;
 
 /*Inizializza le variabili globali da un file di input TXT. */
 int read_all_parameters();
@@ -734,7 +734,19 @@ int main()
             printf("P.UTENTE MAX [%d] ha bilancio di: %d\n", pidmax, max);
             printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin.userPid, pidmin.bilancio);
         }
-        if (SO_NODES_NUM > 20){
+        if (SO_NODES_NUM < 20){
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                }
+
+                printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
+
+                if ( c < *shmIndiceBloccoPtr){
+                    c++;
+                }
+            }
+        }else{
             for(b = 0; b < SO_NODES_NUM; b++){
                 if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
                     childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
@@ -755,18 +767,6 @@ int main()
             }            
             printf("P.NODO MAX [%d] ha bilancio di: %d\n", childNodePidArray[y], nodeMax);
             printf("P.NODO MIN [%d] ha bilancio di: %d\n", childNodePidArray[j], nodeMin);
-        }else{
-            for(b = 0; b < SO_NODES_NUM; b++){
-                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
-                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
-                }
-
-                printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
-
-                if ( c < *shmIndiceBloccoPtr){
-                    c++;
-                }
-            }
         }
         printf("\n");
 #endif
@@ -810,14 +810,13 @@ int main()
             }
 #endif
             master = 0;
-            if (contatoreUtentiVivi <= 1)
+
+            for (i = 0; i < SO_NODES_NUM; i++)
             {
-                for (i = 0; i < SO_NODES_NUM; i++)
-                {
-                    kill(childNodePidArray[i], SIGUSR1);
-                    TEST_ERROR;
-                }
+                kill(childNodePidArray[i], SIGUSR1);
+                TEST_ERROR;
             }
+
             for (i = 0; i < SO_USERS_NUM; i++)
             {
                 if (shmArrayUsersPidPtr[i].stato != USER_KO)
@@ -1107,31 +1106,52 @@ void userTermPremat(int sigNum)
 }
 
 int calcoloBilancio(){
+    int u;
     SO_BUDGET_INIT -= quantita;
-    while(contoPidTrovati < *(shmIndiceBloccoPtr)){
-        if (getpid() == shmLibroMastroPtr[contoPidTrovati].receiver ){
-            SO_BUDGET_INIT += shmLibroMastroPtr[contoPidTrovati].quantita;
+    /*while(ultimoBloccoControllato < *(shmIndiceBloccoPtr)){
+        for (u = 0; u < SO_BLOCK_SIZE -1; u++){
+        if (getpid() == shmLibroMastroPtr[ultimoBloccoControllato + u * *(shmIndiceBloccoPtr)].receiver ){
+            SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato + u * *(shmIndiceBloccoPtr)].quantita;
+        }
+    
 #if(ENABLE_TEST)
-            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[contoPidTrovati].receiver, SO_BUDGET_INIT);
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
 #endif
         }
-        contoPidTrovati++;
+        ultimoBloccoControllato++;
+    }*/
+    for (ultimoBloccoControllato; ultimoBloccoControllato < *(shmIndiceBloccoPtr); ultimoBloccoControllato++){
+        for(u = 0; u < SO_BLOCK_SIZE - 1; u++){
+            if(getpid() == shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].receiver){
+                SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
+            }
+/*#if(ENABLE_TEST)
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
+#endif*/
+        }
     }
 
     return SO_BUDGET_INIT;
 }
 
 int attesaRicezione(){
-    while(contoPidTrovati < *(shmIndiceBloccoPtr)){
-        if (getpid() == shmLibroMastroPtr[contoPidTrovati].receiver ){
-            SO_BUDGET_INIT += shmLibroMastroPtr[contoPidTrovati].quantita;
+    int u;
+    /*while(ultimoBloccoControllato < *(shmIndiceBloccoPtr)){
+        if (getpid() == shmLibroMastroPtr[ultimoBloccoControllato].receiver ){
+            SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato].quantita;
 #if(ENABLE_TEST)
-            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[contoPidTrovati].receiver, SO_BUDGET_INIT);
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
 #endif
         }
-        contoPidTrovati++;
+        ultimoBloccoControllato++;
+    }*/
+    for (ultimoBloccoControllato; ultimoBloccoControllato < *(shmIndiceBloccoPtr); ultimoBloccoControllato++){
+        for(u = 0; u < SO_BLOCK_SIZE - 1; u++){
+            if(getpid() == shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].receiver){
+                SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
+            }
+        }
     }
-
     return SO_BUDGET_INIT;
 }
 /*TODO
