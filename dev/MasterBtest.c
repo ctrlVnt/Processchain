@@ -28,7 +28,7 @@
                 strerror(errno));                  \
     }
 
-#define ENABLE_TEST 1
+#define ENABLE_TEST 0
 
 typedef struct transazione_ds
 {                              /*inviata dal processo utente a uno dei processi nodo che la gestisce*/
@@ -1151,7 +1151,7 @@ int attesaRicezione(){
                 SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
             }
         }
-
+    }
     return SO_BUDGET_INIT;
 }
 /*TODO
