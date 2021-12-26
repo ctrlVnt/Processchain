@@ -137,16 +137,16 @@ int main(int argc, char const *argv[])
     soMinTransProcNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[1], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(soMinTransProcNsec == 0 && errno == EINVAL)
     {
-        perror("Errore di conversione");
+        perror("- Errore di conversione");
         exit(EXIT_FAILURE);
     }
     else if((soMinTransProcNsec == LONG_MIN || soMinTransProcNsec == LONG_MAX) && errno == ERANGE)
     {
-        perror("Errore ERANGE");
+        perror("- Errore ERANGE");
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    printf("soMinTransProcNsec: %ld\n", soMinTransProcNsec);
+    printf("+ soMinTransProcNsec: %ld\n", soMinTransProcNsec);
     
     /*Recupero secondo parametro*/
     soMaxTransProcNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[2], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -204,7 +204,7 @@ int main(int argc, char const *argv[])
 
     /*ID OK -- effettuo l'attach*/
     puntatoreSharedMemoryLibroMastro = (transazione *)shmat(idSharedMemoryLibroMastro, NULL, 0);
-    if(errno == 22)
+    if(errno == EINVAL)
     {
         perror("shmat puntatoreSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);

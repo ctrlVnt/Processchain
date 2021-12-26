@@ -28,7 +28,7 @@
                 strerror(errno));                  \
     }
 
-#define ENABLE_TEST 0
+#define ENABLE_TEST 1
 
 typedef struct transazione_ds
 {                              /*inviata dal processo utente a uno dei processi nodo che la gestisce*/
@@ -374,7 +374,12 @@ int main()
                     /*printf("mtype: %ld\n", myMsg.mtype);*/
 
                     transactionPool[indiceTpCellaLibera++] = myMsg.transazione;
-
+                    myMsg.transazione.quantita = 0;
+                    myMsg.transazione.receiver = -1;
+                    myMsg.transazione.sender = -1;
+                    clock_gettime(CLOCK_BOOTTIME, &myMsg.transazione.timestamp);
+                    myMsg.transazione.reward = 0;
+                    
                     if (indiceTpCellaLibera == SO_TP_SIZE)
                     {
                         indiceTpCellaLibera = 0;
@@ -568,6 +573,8 @@ int main()
 #if(ENABLE_TEST)
                 printf("[%d]Verifico budget -> %d\n", getpid(), SO_BUDGET_INIT);
 #endif
+                /*aggiunto*/
+                shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();
                 if (shmArrayUsersPidPtr[i].bilancio >= 2)
                 {
                     /*printf("Cerco di riservare il semaforo\n");*/
@@ -601,6 +608,7 @@ int main()
                         transazioneInvio.timestamp = timestampTransazione;
                         quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
                         /*printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);*/
+                        shmArrayUsersPidPtr[i].bilancio -= quantita;
 #if(ENABLE_TEST)
                         printf("[%d] Invio %d\n", getpid(), quantita);
 #endif
@@ -637,7 +645,7 @@ int main()
                         semop(semSetMsgQueueId, &sops, 1);*/
                         /*todo attesa*/
                         /*release delle risorse da mettere nel nodo*/
-                        shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();
+                        /*shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();*/
                     }
                 }
                 else
@@ -647,7 +655,7 @@ int main()
 #endif
                     soRetry--;
                     sleep(1);
-                    shmArrayUsersPidPtr[i].bilancio = attesaRicezione();
+                    /*shmArrayUsersPidPtr[i].bilancio = attesaRicezione();*/
                 }
                 /*printf("5.INIZIO NUOVO CICLO CREAZIONE TRANSAZIONE %d\n", getpid());*/
             }
@@ -1107,7 +1115,7 @@ void userTermPremat(int sigNum)
 
 int calcoloBilancio(){
     int u;
-    SO_BUDGET_INIT -= quantita;
+    /*SO_BUDGET_INIT -= quantita;*/
     /*while(ultimoBloccoControllato < *(shmIndiceBloccoPtr)){
         for (u = 0; u < SO_BLOCK_SIZE -1; u++){
         if (getpid() == shmLibroMastroPtr[ultimoBloccoControllato + u * *(shmIndiceBloccoPtr)].receiver ){
