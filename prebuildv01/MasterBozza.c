@@ -35,7 +35,7 @@
 /*MACRO*/
 
 /*Permette di cambiare la modalita' tra DEBUG e NON-DEBUG*/
-#define ENABLE_TEST 0
+#define ENABLE_TEST 1
 /*Permette di discriminare gli utenti, 1 - utente ancora attivo*/
 #define USER_OK 1
 /*Permette di discriminare gli utenti, 0 - utente non e' attivo*/
@@ -50,6 +50,10 @@ Se un utente termina prematuramente, questo e' il suo valore di ritorno.
 /*Utilizzata per far andare o meno il processo master*/
 #define MASTER_CONTINUE 1
 #define MASTER_STOP 0
+/*ragione della teminazione*/
+#define ALLARME_SCATTATO 0
+#define NO_UTENTI_VIVI 1
+#define TERMINATO_DA_UTENTE 2
 /*******/
 
 /*STRUTTURE*/
@@ -92,11 +96,23 @@ typedef struct utente_ds
 {
     /*Macro UTENTE_XX*/
     int stato;
-    /*MODIFICA Riccardo -- campo di bilancio*/
-    int bilancio;
+    /*Proposta di RICCARDO*/
+    int budget;
     /*getpid()*/
     int userPid;
 } utente;
+
+/*struttura che tiene traccia dello stato dell'utente*/
+typedef struct nodo_ds
+{
+    /*id della sua coda di messaggi*/
+    int mqId;
+    /*Proposta di RICCARDO*/
+    int budget;
+    /*getpid()*/
+    int nodoPid;
+    int transazioniPendenti;
+} nodo;
 
 /***********/
 
@@ -145,10 +161,9 @@ int idSharedMemoryLibroMastro;
 /*ID SM dove si trova l'indice del libro mastro*/
 int idSharedMemoryIndiceLibroMastro;
 /*ID della SM degli'ID delle CODE di messaggi alla quale devo fare l'attach*/
-int idSharedMemoryTutteCodeMessaggi;
-/*header = [NUM_CODE]| body = [id0][id1][...]*/
+int idSharedMemoryTuttiNodi;
 /*ID della SM contenente tutti i PID dei processi utenti - visti come destinatari*/
-int idSharedMemoryTuttiPidUtenti;
+int idSharedMemoryTuttiUtenti;
 
 /*******/
 
@@ -160,9 +175,9 @@ transazione *puntatoreSharedMemoryLibroMastro;
 /*Dopo l'attach, punta alla porzione di memoria condivisa dove si trova effettivamente l'indice del libro mastro*/
 int *puntatoreSharedMemoryIndiceLibroMastro;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente gli id di tutte le code di messaggi, attenzione primo campo e' HEADER*/
-int *puntatoreSharedMemoryTutteCodeMessaggi;
+nodo *puntatoreSharedMemoryTuttiNodi;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente i PID degli utenti*/
-utente *puntatoreSharedMemoryTuttiPidUtenti;
+utente *puntatoreSharedMemoryTuttiUtenti;
 
 /*************/
 
@@ -231,6 +246,7 @@ int childPid;
 int childPidWait;
 int childStatus;
 int contatoreUtentiVivi;
+int motivoTerminazione;
 
 /*********************/
 
@@ -238,6 +254,7 @@ int contatoreUtentiVivi;
 
 char parametriPerNodo[10][32];
 char intToStrBuff[32];
+char parametriPerUtente[10][32];
 /*QUESTO UTILIZZIAMO PER NOTIFICARE I NOSTRI CARISSIMI PROCESSI NODI*/
 int *arrayPidProcessiNodi;
 
@@ -251,6 +268,8 @@ int *arrayPidProcessiNodi;
 int readAllParameters();
 /*gestione del segnale*/
 void alarmHandler(int sigNum);
+/*stampa terminale*/
+void stampaTerminale();
 
 /**********/
 
@@ -266,29 +285,35 @@ int main(int argc, char const *argv[])
         perror("- fetch parameters");
         exit(EXIT_FAILURE);
     }
-    printf("+ Parsing parametri avvenuto correttamente\n");
+    #if(ENABLE_TEST)
+        printf("+ Parsing parametri avvenuto correttamente\n");
+    #endif
     contatoreUtentiVivi = SO_USERS_NUM;
 
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
-    /*va messo in un header file*/
     SO_BLOCK_SIZE = 5;
+    SO_TP_SIZE = 10;
     idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if(idSharedMemoryLibroMastro == -1)
     {
         perror("- shmget idSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSharedMemoryLibroMastro creato con successo - %d\n", idSharedMemoryLibroMastro);
+    #if(ENABLE_TEST)
+        printf("+ idSharedMemoryLibroMastro creato con successo - %d\n", idSharedMemoryLibroMastro);
+    #endif
     puntatoreSharedMemoryLibroMastro = (transazione *)shmat(idSharedMemoryLibroMastro, NULL, 0);
     
-    if(errno == EINVAL) /*prima era un num. 22*/
+    if(errno == 22)
     {
         perror("- shmat idSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ puntatore al libroMastro creato con successo\n");
+    #if(ENABLE_TEST)
+        printf("+ puntatore al libroMastro creato con successo\n");
+    #endif
 
     /*SEMAFORO*/
     idSemaforoAccessoLibroMastro = semget(IPC_PRIVATE, 1, 0600 | IPC_CREAT);
@@ -297,7 +322,9 @@ int main(int argc, char const *argv[])
         perror("semget idSemaforoAccessoLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSemaforoAccessoLibroMastro creato con successo - %d\n", idSemaforoAccessoLibroMastro);
+    #if(ENABLE_TEST)
+        printf("+ idSemaforoAccessoLibroMastro creato con successo - %d\n", idSemaforoAccessoLibroMastro);
+    #endif
     operazioniSemaforo.sem_flg = 0;
     operazioniSemaforo.sem_num = 0;
     operazioniSemaforo.sem_op = 1;
@@ -307,7 +334,9 @@ int main(int argc, char const *argv[])
         perror("semop idSemaforoAccessoLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ semaforo idSemaforoAccessoLibroMastro inizialiizato a 1\n");
+    #if(ENABLE_TEST)
+        printf("+ semaforo idSemaforoAccessoLibroMastro inizialiizato a 1\n");
+    #endif
 
     /*FINE Inizializzazione LIBRO MASTRO*/
 
@@ -320,7 +349,9 @@ int main(int argc, char const *argv[])
         perror("- shmget idSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSharedMemoryIndiceLibroMastro creato con successo - %d\n", idSharedMemoryIndiceLibroMastro);
+    #if(ENABLE_TETS)
+        printf("+ idSharedMemoryIndiceLibroMastro creato con successo - %d\n", idSharedMemoryIndiceLibroMastro);
+    #endif
     puntatoreSharedMemoryIndiceLibroMastro = (int *)shmat(idSharedMemoryIndiceLibroMastro, NULL, 0);
     if(*puntatoreSharedMemoryIndiceLibroMastro == -1)
     {
@@ -328,7 +359,9 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     puntatoreSharedMemoryIndiceLibroMastro[0] = 0;
-    printf("+ indice creato con successo e inizializzato a %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
+    #if(ENABLE_TEST)
+        printf("+ indice creato con successo e inizializzato a %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
+    #endif
 
     /*SEMAFORO*/
     idSemaforoAccessoIndiceLibroMastro = semget(IPC_PRIVATE, 1, 0600 | IPC_CREAT);
@@ -337,7 +370,9 @@ int main(int argc, char const *argv[])
         perror("- semget idSemaforoAccessoIndiceLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSemaforoAccessoIndiceLibroMastro creato con successo - %d\n", idSemaforoAccessoIndiceLibroMastro);
+    #if(ENABLE_TEST)
+        printf("+ idSemaforoAccessoIndiceLibroMastro creato con successo - %d\n", idSemaforoAccessoIndiceLibroMastro);
+    #endif
     operazioniSemaforo.sem_flg = 0;
     operazioniSemaforo.sem_num = 0;
     operazioniSemaforo.sem_op = 1;
@@ -347,7 +382,9 @@ int main(int argc, char const *argv[])
         perror("- semop idSemaforoAccessoLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ semaforo idSemaforoAccessoLibroMastro inizialiizato a 1\n");
+    #if(ENABLE_TEST)
+        printf("+ semaforo idSemaforoAccessoLibroMastro inizialiizato a 1\n");
+    #endif
 
     /*FINE Inizializzazione INDICE LIBRO MASTRO*/
 
@@ -361,21 +398,29 @@ int main(int argc, char const *argv[])
     }
     /*SM*/
     /*REMINDER x2, prima cella di questa SM indica il NUMERO totale di CODE presenti, quindi rispecchia anche il numero dei nodi presenti*/
-    idSharedMemoryTutteCodeMessaggi = shmget(IPC_PRIVATE, 2 * SO_NODES_NUM + 1, 0600 | IPC_CREAT);
-    if(idSharedMemoryTutteCodeMessaggi == -1)
+    idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (2 * SO_NODES_NUM + 1), 0600 | IPC_CREAT);
+    if(idSharedMemoryTuttiNodi == -1)
     {
-        perror("shmget idSharedMemoryTutteCodeMessaggi");
+        perror("shmget idSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSharedMemoryTutteCodeMessaggi creato con successo - %d\n", idSharedMemoryTutteCodeMessaggi);
-    puntatoreSharedMemoryTutteCodeMessaggi = (int *)shmat(idSharedMemoryTutteCodeMessaggi, NULL, 0);
-    if(*puntatoreSharedMemoryTutteCodeMessaggi == -1)
+    #if(ENABLE_TEST)
+        printf("+ idSharedMemoryTuttiNodi creato con successo - %d\n", idSharedMemoryTuttiNodi);
+    #endif
+    puntatoreSharedMemoryTuttiNodi = (nodo *)shmat(idSharedMemoryTuttiNodi, NULL, 0);
+    if(errno == EINVAL)
     {
-        perror("- shmat idSharedMemoryTutteCodeMessaggi");
+        perror("- shmat idSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
-    puntatoreSharedMemoryTutteCodeMessaggi[0] = SO_NODES_NUM;
-    printf("+ puntatoreSharedMemoryTutteCodeMessaggi creato con successo, numero totale di MQ - %d\n", puntatoreSharedMemoryTutteCodeMessaggi[0]);
+    /*continee il numero totale di nodi*/
+    puntatoreSharedMemoryTuttiNodi[0].nodoPid = SO_NODES_NUM;
+    puntatoreSharedMemoryTuttiNodi[0].budget = -1;
+    puntatoreSharedMemoryTuttiNodi[0].mqId = -1;
+    puntatoreSharedMemoryTuttiNodi[0].transazioniPendenti = -1;
+    #if(ENABLE_TEST)
+        printf("+ puntatoreSharedMemoryTuttiNodi creato con successo, numero totale di MQ - %d\n", puntatoreSharedMemoryTuttiNodi[0].nodoPid);
+    #endif
     numeroNodi = 0;
     for(numeroNodi; numeroNodi < SO_NODES_NUM; numeroNodi++)
     {
@@ -385,10 +430,15 @@ int main(int argc, char const *argv[])
             perror("- msgget tutteCodeMessaggi");
             exit(EXIT_FAILURE);
         }
-        puntatoreSharedMemoryTutteCodeMessaggi[numeroNodi + 1] = msggetRisposta;
-        printf("+ mssget registrata all'indice %d con id - %d\n",  (numeroNodi + 1), msggetRisposta);
+        puntatoreSharedMemoryTuttiNodi[numeroNodi + 1].mqId = msggetRisposta;
+        puntatoreSharedMemoryTuttiNodi[numeroNodi + 1].transazioniPendenti = SO_TP_SIZE;
+        #if(ENABLE_TEST)
+            printf("+ mssget registrata all'indice %d con id - %d\n",  (numeroNodi + 1), msggetRisposta);
+        #endif
     }
-    printf("+ registrazione tutteCodeMessaggi avvenuta con successo, totale code %d\n", numeroNodi);
+    #if(ENABLE_TEST)
+        printf("+ registrazione tutteCodeMessaggi avvenuta con successo, totale code %d\n", numeroNodi);
+    #endif
     /*SEMAFORI*/
     idSemaforoAccessoNodoCodaMessaggi = semget(IPC_PRIVATE, 2 * SO_NODES_NUM, 0600 | IPC_CREAT);
     if(idSemaforoAccessoNodoCodaMessaggi == -1)
@@ -396,7 +446,9 @@ int main(int argc, char const *argv[])
         perror("- semget idSemaforoAccessoNodoCodaMessaggi");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSemaforoAccessoNodoCodaMessaggi inizializzato correttamente con id - %d\n", idSemaforoAccessoNodoCodaMessaggi);
+    #if(ENABLE_TEST)
+        printf("+ idSemaforoAccessoNodoCodaMessaggi inizializzato correttamente con id - %d\n", idSemaforoAccessoNodoCodaMessaggi);
+    #endif
     
     arrayValoriInizialiSemaforiCodeMessaggi = (unsigned short *)calloc(SO_NODES_NUM, sizeof(unsigned int));
     if(arrayValoriInizialiSemaforiCodeMessaggi == NULL)
@@ -404,14 +456,17 @@ int main(int argc, char const *argv[])
         perror("- calloc arrayValoriInizialiSemaforiCodeMessaggi");
         exit(EXIT_FAILURE);
     }
-    printf("+ arrayValoriInizialiSemaforiCodeMessaggi inizializzato correttamente\n");
+    #if(ENABLE_TEST)
+        printf("+ arrayValoriInizialiSemaforiCodeMessaggi inizializzato correttamente\n");
+    #endif
     i = 0;
-    SO_TP_SIZE = 10;
     for(i; i < SO_NODES_NUM; i++)
     {
         arrayValoriInizialiSemaforiCodeMessaggi[i] = SO_TP_SIZE;
     }
-    printf("+ arrayValoriInizialiSemaforiCodeMessaggi popolato correttamente\n");
+    #if(ENABLE_TEST)
+        printf("+ arrayValoriInizialiSemaforiCodeMessaggi popolato correttamente\n");
+    #endif
     semaforoUnion.array = arrayValoriInizialiSemaforiCodeMessaggi;
     semctlRisposta = semctl(idSemaforoAccessoNodoCodaMessaggi, 0, SETALL, semaforoUnion);
     if(semctlRisposta == -1)
@@ -419,19 +474,23 @@ int main(int argc, char const *argv[])
         perror("- semctl SETALL");
         exit(EXIT_FAILURE);
     }
-    printf("+ set semafori idSemaforoAccessoNodoCodaMessaggi inizializzato correttamente\n");
+    #if(ENABLE_TEST)
+        printf("+ set semafori idSemaforoAccessoNodoCodaMessaggi inizializzato correttamente\n");
+    #endif
 
     /*FINE Inizializzazione SM delle MQ*/
     
     /*INIZIO Inizializzazione SM che contiene i PID degli USER*/
 
-    idSharedMemoryTuttiPidUtenti = shmget(IPC_PRIVATE, SO_USERS_NUM, 0600 | IPC_CREAT);
-    if(idSharedMemoryTuttiPidUtenti == -1)
+    idSharedMemoryTuttiUtenti = shmget(IPC_PRIVATE, SO_USERS_NUM + 1, 0600 | IPC_CREAT);
+    if(idSharedMemoryTuttiUtenti == -1)
     {
-        perror("- shmget idSharedMemoryTuttiPidUtenti");
+        perror("- shmget idSharedMemoryTuttiUtenti");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSharedMemoryTuttiPidUtenti creato con successo - %d\n", idSharedMemoryTuttiPidUtenti);
+    #if(ENABLE_TEST)
+        printf("+ idSharedMemoryTuttiUtenti creato con successo - %d\n", idSharedMemoryTuttiUtenti);
+    #endif
     
     /*FINE Inizializzazione SM che contiene i PID degli USER*/
 
@@ -443,7 +502,9 @@ int main(int argc, char const *argv[])
         perror("- semget idSemaforoSincronizzazioneTuttiProcessi");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSemaforoSincronizzazioneTuttiProcessi inizializzato correttamente con id - %d\n", idSemaforoSincronizzazioneTuttiProcessi);
+    #if(ENABLE_TEST)
+        printf("+ idSemaforoSincronizzazioneTuttiProcessi inizializzato correttamente con id - %d\n", idSemaforoSincronizzazioneTuttiProcessi);
+    #endif
     operazioniSemaforo.sem_flg = 0;
     operazioniSemaforo.sem_op = SO_NODES_NUM + 1;
     operazioniSemaforo.sem_num = 0;
@@ -453,7 +514,9 @@ int main(int argc, char const *argv[])
         perror("- semop idSemaforoSincronizzazioneTuttiProcessi");
         exit(EXIT_FAILURE);
     }
-    printf("+ inizio sincronizzare NODI\n");
+    #if(ENABLE_TEST)
+        printf("+ inizio sincronizzare NODI\n");
+    #endif
     
     /*CREAZIONE NODI*/
 
@@ -498,7 +561,7 @@ int main(int argc, char const *argv[])
                 strcpy(parametriPerNodo[1], intToStrBuff);
                 sprintf(intToStrBuff, "%ld", SO_MAX_TRANS_PROC_NSEC);
                 strcpy(parametriPerNodo[2], intToStrBuff);
-                sprintf(intToStrBuff, "%d", idSharedMemoryTutteCodeMessaggi);
+                sprintf(intToStrBuff, "%d", idSharedMemoryTuttiNodi);
                 strcpy(parametriPerNodo[3], intToStrBuff);
                 sprintf(intToStrBuff, "%d", /*i-esimo nodo*/i);
                 strcpy(parametriPerNodo[4], intToStrBuff);
@@ -527,7 +590,8 @@ int main(int argc, char const *argv[])
             default:
                 /*NON MI RICORDO SE DEVO FARE QUALCOSA QUA*/
                 /*eh invece si'*/
-                arrayPidProcessiNodi[i] = childPid;
+                puntatoreSharedMemoryTuttiNodi[i + 1].budget = 0;
+                puntatoreSharedMemoryTuttiNodi[i + 1].nodoPid = childPid;
             break;
         }
     }
@@ -543,56 +607,203 @@ int main(int argc, char const *argv[])
         perror("- semop idSemaforoSincronizzazioneTuttiProcessi dopo NODI");
         exit(EXIT_FAILURE);
     }
-    printf("+ noodi sono notificati correttamente\n");
+    #if(ENABLE_TEST)
+        printf("+ nodi sono notificati correttamente\n");
+    #endif
     
     /*FINE Semaforo di sincronizzazione*/
 
+    /*PARTE DEGLI UTENTI*/
+    operazioniSemaforo.sem_flg = 0;
+    operazioniSemaforo.sem_op = SO_USERS_NUM + 1;
+    operazioniSemaforo.sem_num = 0;
+    semopRisposta = semop(idSemaforoSincronizzazioneTuttiProcessi, &operazioniSemaforo, 1);
+    if(semopRisposta == -1)
+    {
+        perror("- semop idSemaforoSincronizzazioneTuttiProcessi dopo NODI");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("+ inizio sincronizzare UTENTI\n");
+    #endif
 
+    i = 0;
+    /*creo la SM dove memorizzo gli utenti*/
+    puntatoreSharedMemoryTuttiUtenti = (utente *)shmat(idSharedMemoryTuttiUtenti, NULL, 0);
+    if(errno == EINVAL)
+    {
+        perror("shmat puntatoreSharedMemoryTuttiUtenti");
+        exit(EXIT_FAILURE);
+    }
 
+    puntatoreSharedMemoryTuttiUtenti[0].budget = -1;
+    puntatoreSharedMemoryTuttiUtenti[0].stato = -1;
+    puntatoreSharedMemoryTuttiUtenti[0].userPid = SO_USERS_NUM;
+    
+    for (i; i < SO_USERS_NUM; i++)
+    {
+        switch(childPid = fork())
+        {
+            case -1:
+                perror("fork");
+                exit(EXIT_FAILURE);
+            break;
+            case 0:
+                /*QUA HO EREDITATO TUTTI I PUNTATORI*/
+                /*devo notificare il parent e attendere lo zero*/
+                
+                operazioniSemaforo.sem_flg = 0;
+                operazioniSemaforo.sem_num = 0;
+                operazioniSemaforo.sem_op = -1;
+                semopRisposta = semop(idSemaforoSincronizzazioneTuttiProcessi, &operazioniSemaforo, 1);
+                if(semopRisposta == -1)
+                {
+                    perror("semop nodo");
+                    exit(EXIT_FAILURE);
+                }
+                operazioniSemaforo.sem_flg = 0;
+                operazioniSemaforo.sem_num = 0;
+                operazioniSemaforo.sem_op = 0;
+                semopRisposta = semop(idSemaforoSincronizzazioneTuttiProcessi, &operazioniSemaforo, 1);
+                if(semopRisposta == -1)
+                {
+                    perror("semop nodo");
+                    exit(EXIT_FAILURE);
+                }
 
-    /*PARTE DEGLI UTENTI - TODO*/
+                /***********************************************/
 
+                /*INIZIO Costruire la lista di parametri*/
+                strcpy(parametriPerUtente[0], "UtenteBozza");
+                sprintf(intToStrBuff, "%ld", SO_MIN_TRANS_GEN_NSEC);
+                strcpy(parametriPerUtente[1], intToStrBuff);
+                sprintf(intToStrBuff, "%ld", SO_MAX_TRANS_GEN_NSEC);
+                strcpy(parametriPerUtente[2], intToStrBuff);
+                sprintf(intToStrBuff, "%d", idSharedMemoryTuttiNodi);
+                strcpy(parametriPerUtente[3], intToStrBuff);
+                sprintf(intToStrBuff, "%d", /*i-esimo nodo*/i);
+                strcpy(parametriPerUtente[4], intToStrBuff);
+                sprintf(intToStrBuff, "%d", idSharedMemoryLibroMastro);
+                strcpy(parametriPerUtente[5], intToStrBuff);
+                sprintf(intToStrBuff, "%d", SO_RETRY);
+                strcpy(parametriPerUtente[6], intToStrBuff);
+                sprintf(intToStrBuff, "%d", SO_BUDGET_INIT);
+                strcpy(parametriPerUtente[7], intToStrBuff);
+                sprintf(intToStrBuff, "%d", idSharedMemoryTuttiUtenti);
+                strcpy(parametriPerUtente[8], intToStrBuff);
+                sprintf(intToStrBuff, "%d", idSemaforoAccessoNodoCodaMessaggi);
+                strcpy(parametriPerUtente[9], intToStrBuff);
 
+                printf("+ Tentativo eseguire la execlp\n");
+                /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
+                execRisposta = execlp("./UtenteBozza", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], NULL);
+                if(execRisposta == -1)
+                {
+                    perror("execlp");
+                    exit(EXIT_FAILURE);
+                }
 
+            break;
+            default:
+                puntatoreSharedMemoryTuttiUtenti[i + 1].userPid = childPid;
+                puntatoreSharedMemoryTuttiUtenti[i + 1].stato = USER_OK;
+                puntatoreSharedMemoryTuttiUtenti[i + 1].budget = SO_BUDGET_INIT;
+                #if(ENABLE_TEST)
+                    printf("+ %d UTENTE[%d] registrato correttamente\n", i, childPid);
+                #endif
+            break;
+        }
+        
+    }
 
+    /*FINE CREAZIONE UTENTI*/
 
+    operazioniSemaforo.sem_flg = 0;
+    operazioniSemaforo.sem_op = -1;
+    operazioniSemaforo.sem_num = 0;
+    semopRisposta = semop(idSemaforoSincronizzazioneTuttiProcessi, &operazioniSemaforo, 1);
+    if(semopRisposta == -1)
+    {
+        perror("- semop idSemaforoSincronizzazioneTuttiProcessi dopo NODI");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("+ utenti sono notificati correttamente\n");
+    #endif
 
     /*INIZIO Impostazione sigaction per ALARM*/
-
     /*no signals blocked*/
     sigemptyset(&sigactionAlarmNuova.sa_mask);
     sigactionAlarmNuova.sa_flags = 0;
     sigactionAlarmNuova.sa_handler = alarmHandler;
     sigaction(SIGALRM, &sigactionAlarmNuova, &sigactionAlarmPrecedente);
-    printf("+ sigaction per ALARM impostato con successo");
+    #if(ENABLE_TEST)
+        printf("+ sigaction per ALARM impostato con successo");
+    #endif
     alarm(SO_SIM_SEC);
-    printf("+ timer avviato: %d sec.\n", SO_SIM_SEC);
+    #if(ENABLE_TEST)
+        printf("+ timer avviato: %d sec.\n", SO_SIM_SEC);
+    #endif
     /*FINE Impostazione sigaction per ALARM*/
 
     /*CICLO DI VITA DEL PROCESSO MASTER*/
+
     master = MASTER_CONTINUE;
     while(master)
     {
         /*TODO*/
         sleep(2);
+        /*verifico se qualcuno ha cambiato lo stato senza attendere*/
+        if((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != -1)
+        {
+            if(WIFEXITED(childStatus))
+            {
+                /*se lo status e' EXIT_PREMAT*/
+                if(WEXITSTATUS(childStatus) == EXIT_PREMAT)
+                {
+                    /*faccio notrare a tutti che il numero degli utenti si e' diminuito*/
+                    puntatoreSharedMemoryTuttiUtenti[0].userPid--;
+                    /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
+                    if(puntatoreSharedMemoryTuttiUtenti[0].userPid <= -1)
+                    {
+                        /*COME SE ALLARME SCATASSE*/
+                        raise(SIGALRM);
+                        motivoTerminazione = NO_UTENTI_VIVI;
+                    }
+                }
+            }
+        }
     }
 
     /***********************************/
-
     /*Prima di chiudere le risorse... Attendo i figli hehehe*/
-    
-    /*Chiusura delle risorse*/
+    while((childPidWait = waitpid(-1, &childStatus, 0)) != -1)
+    {
+        printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));
+    }
 
+    stampaTerminale();
+
+    /*STAMPO MOTIVO DELLA TERMINAZIONE*/
+    /**********************************/
+
+    /*Chiusura delle risorse*/
+    shmdtRisposta = shmdt(puntatoreSharedMemoryTuttiUtenti);
+    if(shmdtRisposta == -1)
+    {
+        perror("- shmdt puntatoreSharedMemoryTuttiUtenti");
+        exit(EXIT_FAILURE);
+    }
     semctlRisposta = semctl(idSemaforoSincronizzazioneTuttiProcessi, 0, IPC_RMID);
     if(semctlRisposta == -1)
     {
         perror("- semctl idSemaforoSincronizzazioneTuttiProcessi");
         exit(EXIT_FAILURE);
     }
-    shmctlRisposta = shmctl(idSharedMemoryTuttiPidUtenti, IPC_RMID, NULL);
+    shmctlRisposta = shmctl(idSharedMemoryTuttiUtenti, IPC_RMID, NULL);
     if(shmctlRisposta == -1)
     {
-        perror("- shmctl idSharedMemoryTuttiPidUtenti");
+        perror("- shmctl idSharedMemoryTuttiUtenti");
         exit(EXIT_FAILURE);
     }
     semctlRisposta = semctl(idSemaforoAccessoNodoCodaMessaggi, 0, IPC_RMID);
@@ -604,24 +815,24 @@ int main(int argc, char const *argv[])
     i = 0;
     for(i; i < numeroNodi; i++)
     {
-        msgctlRisposta = msgctl(puntatoreSharedMemoryTutteCodeMessaggi[i + 1], IPC_RMID, NULL);
+        msgctlRisposta = msgctl(puntatoreSharedMemoryTuttiNodi[i + 1].mqId, IPC_RMID, NULL);
         if(msgctlRisposta == -1)
         {
             perror("- msgctl");/*essere piu' dettagliato*/
             exit(EXIT_FAILURE);
         }
-        /*printf("+ codaMessaggi con ID %d eliminata con successo\n", puntatoreSharedMemoryTutteCodeMessaggi[i + 1]);*/
+        /*printf("+ codaMessaggi con ID %d eliminata con successo\n", puntatoreSharedMemoryTuttiNodi[i + 1]);*/
     }
-    shmdtRisposta = shmdt(puntatoreSharedMemoryTutteCodeMessaggi);
+    shmdtRisposta = shmdt(puntatoreSharedMemoryTuttiNodi);
     if(shmdtRisposta == -1)
     {
-        perror("- shmdt puntatoreSharedMemoryTutteCodeMessaggi");
+        perror("- shmdt puntatoreSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
-    shmctlRisposta = shmctl(idSharedMemoryTutteCodeMessaggi, IPC_RMID, NULL);
+    shmctlRisposta = shmctl(idSharedMemoryTuttiNodi, IPC_RMID, NULL);
     if(shmctlRisposta == -1)
     {
-        perror("- shmctl idSharedMemoryTutteCodeMessaggi");
+        perror("- shmctl idSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
     semctlRisposta = semctl(idSemaforoAccessoIndiceLibroMastro, /*ignorato*/0, IPC_RMID);
@@ -796,11 +1007,68 @@ void alarmHandler(int sigNum)
     int cont;
     cont  = 0;
     printf("+ ALARM scattato\n");
-    
+
+    /*header della SM che contine tutti i pid rispecchia il numero dei nodi*/
+    if(puntatoreSharedMemoryTuttiUtenti[0].userPid >= 1)
+    {
+        for (cont = 0; cont < SO_USERS_NUM; cont++)
+        {
+            if(puntatoreSharedMemoryTuttiUtenti[cont + 1].stato == USER_OK)
+            {
+                kill(puntatoreSharedMemoryTuttiUtenti[cont + 1].userPid, SIGUSR1);
+            }
+        }
+    }
+
+    cont = 0;
     for(cont; cont < numeroNodi; cont++)
     {
-        kill(arrayPidProcessiNodi[cont], SIGUSR1);
+        kill(puntatoreSharedMemoryTuttiNodi[cont + 1].nodoPid, SIGUSR1);
     }
     sleep(1);
     master = MASTER_STOP;
+    motivoTerminazione = ALLARME_SCATTATO;
+}
+
+void stampaTerminale()
+{
+    char *ragione;
+    int contatoreStampa;
+    int contPremat;
+    contPremat = 0;
+
+    ragione = "forza maggiore\0";
+    switch (motivoTerminazione)
+    {
+    case ALLARME_SCATTATO:
+        ragione = "l'allarme scattato\0";
+        break;
+    case NO_UTENTI_VIVI:
+        ragione = "no utenti vivi\0";
+        break;
+    default:
+        break;
+    }
+    printf("Ragione della terminazione: %s\n", ragione);
+
+    /*stampo bilancio utenti*/
+    contatoreStampa = 0;
+    printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
+    for(contatoreStampa; contatoreStampa < SO_USERS_NUM; contatoreStampa++)
+    {
+        printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].userPid, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato);
+        if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
+        {
+            contPremat++;
+        }
+    }
+    printf("\n# Utenti terminati prematuramente: %d / %d\n", contPremat, puntatoreSharedMemoryTuttiUtenti[0].userPid);
+    printf("NODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
+    contatoreStampa = 0;
+    for(contatoreStampa; contatoreStampa < SO_NODES_NUM; contatoreStampa++)
+    {
+        printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].nodoPid, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].transazioniPendenti);
+    }
+    printf("\nNumero di blocchi: %d\n", 1000);
+
 }
