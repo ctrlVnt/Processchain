@@ -1,0 +1,13 @@
+Ho provato a inizializzare i file che in futuro saranno: Nodo, Master e Utente rispettivamente.
+Cosa ho testato:
+1. Parsare in STRING tutti i parametri
+2. Passarli al programma derivato attraverso la EXEPL, e non execve
+3. Riesco a parsarli nuovamente in long o int ed effettuare le attach
+4. Riesco a stoppare i processi e catturare i segnali
+5. Ho definito le macro per discriminare lo stato normale di esecuzione e quello terminale -- da discutere
+TODO
+1. Capire quali parametri devono ricevere i processi nodi e gli utenti -- il protocollo di comunicazione
+2. Definire le macro
+3. Discutere sul come ottimizzare la stampa
+4. Discutere come prevedere il numero di nodi
+5. Introdurre gli strumenti per la versione normal
