@@ -92,6 +92,8 @@ typedef struct utente_ds
 {
     /*Macro UTENTE_XX*/
     int stato;
+    /*MODIFICA Riccardo -- campo di bilancio*/
+    int bilancio;
     /*getpid()*/
     int userPid;
 } utente;
@@ -144,8 +146,9 @@ int idSharedMemoryLibroMastro;
 int idSharedMemoryIndiceLibroMastro;
 /*ID della SM degli'ID delle CODE di messaggi alla quale devo fare l'attach*/
 int idSharedMemoryTutteCodeMessaggi;
+/*header = [NUM_CODE]| body = [id0][id1][...]*/
 /*ID della SM contenente tutti i PID dei processi utenti - visti come destinatari*/
-int idSharedMemoryTittiPidUtenti;
+int idSharedMemoryTuttiPidUtenti;
 
 /*******/
 
@@ -269,6 +272,7 @@ int main(int argc, char const *argv[])
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
+    /*va messo in un header file*/
     SO_BLOCK_SIZE = 5;
     idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if(idSharedMemoryLibroMastro == -1)
@@ -279,7 +283,7 @@ int main(int argc, char const *argv[])
     printf("+ idSharedMemoryLibroMastro creato con successo - %d\n", idSharedMemoryLibroMastro);
     puntatoreSharedMemoryLibroMastro = (transazione *)shmat(idSharedMemoryLibroMastro, NULL, 0);
     
-    if(errno == 22)
+    if(errno == EINVAL) /*prima era un num. 22*/
     {
         perror("- shmat idSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
@@ -421,13 +425,13 @@ int main(int argc, char const *argv[])
     
     /*INIZIO Inizializzazione SM che contiene i PID degli USER*/
 
-    idSharedMemoryTittiPidUtenti = shmget(IPC_PRIVATE, SO_USERS_NUM, 0600 | IPC_CREAT);
-    if(idSharedMemoryTittiPidUtenti == -1)
+    idSharedMemoryTuttiPidUtenti = shmget(IPC_PRIVATE, SO_USERS_NUM, 0600 | IPC_CREAT);
+    if(idSharedMemoryTuttiPidUtenti == -1)
     {
-        perror("- shmget idSharedMemoryTittiPidUtenti");
+        perror("- shmget idSharedMemoryTuttiPidUtenti");
         exit(EXIT_FAILURE);
     }
-    printf("+ idSharedMemoryTittiPidUtenti creato con successo - %d\n", idSharedMemoryTittiPidUtenti);
+    printf("+ idSharedMemoryTuttiPidUtenti creato con successo - %d\n", idSharedMemoryTuttiPidUtenti);
     
     /*FINE Inizializzazione SM che contiene i PID degli USER*/
 
@@ -540,8 +544,6 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     printf("+ noodi sono notificati correttamente\n");
-
-    sleep(30);
     
     /*FINE Semaforo di sincronizzazione*/
 
@@ -568,7 +570,6 @@ int main(int argc, char const *argv[])
     /*FINE Impostazione sigaction per ALARM*/
 
     /*CICLO DI VITA DEL PROCESSO MASTER*/
-
     master = MASTER_CONTINUE;
     while(master)
     {
@@ -580,7 +581,6 @@ int main(int argc, char const *argv[])
 
     /*Prima di chiudere le risorse... Attendo i figli hehehe*/
     
-
     /*Chiusura delle risorse*/
 
     semctlRisposta = semctl(idSemaforoSincronizzazioneTuttiProcessi, 0, IPC_RMID);
@@ -589,10 +589,10 @@ int main(int argc, char const *argv[])
         perror("- semctl idSemaforoSincronizzazioneTuttiProcessi");
         exit(EXIT_FAILURE);
     }
-    shmctlRisposta = shmctl(idSharedMemoryTittiPidUtenti, IPC_RMID, NULL);
+    shmctlRisposta = shmctl(idSharedMemoryTuttiPidUtenti, IPC_RMID, NULL);
     if(shmctlRisposta == -1)
     {
-        perror("- shmctl idSharedMemoryTittiPidUtenti");
+        perror("- shmctl idSharedMemoryTuttiPidUtenti");
         exit(EXIT_FAILURE);
     }
     semctlRisposta = semctl(idSemaforoAccessoNodoCodaMessaggi, 0, IPC_RMID);
