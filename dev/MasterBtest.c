@@ -289,7 +289,7 @@ int main()
     printf("\nLa shared memory dell'array contenente gli ID delle message queue è: %d\n", shmIdUtente);
 #endif*/
     /*inizializzazione array child NODE PID*/
-    childNodePidArray = (int *)calloc(SO_NODES_NUM, sizeof(int));
+    childNodePidArray = (int *)calloc(SO_NODES_NUM * 2, sizeof(int));
     TEST_ERROR;
 
     /*creazione figli nodi con operazioni annesse*/
@@ -351,6 +351,7 @@ int main()
             transazioneReward.sender = REWARD_SENDER;
             transazioneReward.reward = 0;
             transazioneReward.quantita = 0;
+            transazioneReward.receiver = getpid();
             while (nodo)
             {
                 /*quando il semaforo è verde si riempie la Tp*/
@@ -694,9 +695,15 @@ int main()
     int pidmax;
     int max;
     utente pidmin;
+    utente fantoccio;
     int b;
-    int c;
-    pidmin.bilancio = SO_BUDGET_INIT;
+    int c = 0;
+    pidmin = shmArrayUsersPidPtr[1];
+    fantoccio = shmArrayUsersPidPtr[1];
+    int nodeMax = 0;
+    int nodeMin = 0;
+    int y = 0;
+    int j = 0;
     while (master)
     {
 #if(ENABLE_TEST == 0)
@@ -711,21 +718,55 @@ int main()
                 printf("P.UTENTE [%d] ha bilancio di: %d\n", shmArrayUsersPidPtr[b].userPid, shmArrayUsersPidPtr[b].bilancio);
             }
         }else{
+            if(pidmin.bilancio <= 2){
+                    pidmin = fantoccio;
+                }
             for (b = 0; b < SO_USERS_NUM; b++){
                 if(shmArrayUsersPidPtr[b].bilancio > max){
                     pidmax = shmArrayUsersPidPtr[b].userPid;
                     max = shmArrayUsersPidPtr[b].bilancio;                    
                 }
-                /*ANCORA SBAGLIATO*/
-                if(shmArrayUsersPidPtr[b].bilancio <= pidmin.bilancio && shmArrayUsersPidPtr[b].stato != USER_KO){
+                
+                if(shmArrayUsersPidPtr[b].bilancio <= pidmin.bilancio && shmArrayUsersPidPtr[b].stato != USER_KO){ /*se metto > 2 restituisce altro*/
                     pidmin = shmArrayUsersPidPtr[b];
-                }
-                if(pidmin.stato == USER_KO){
-                    pidmin.bilancio = SO_BUDGET_INIT;
                 }
             }
             printf("P.UTENTE MAX [%d] ha bilancio di: %d\n", pidmax, max);
             printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin.userPid, pidmin.bilancio);
+        }
+        if (SO_NODES_NUM > 20){
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                }
+            }
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if (childNodePidArray[b + SO_NODES_NUM] > nodeMax){
+                    nodeMax = childNodePidArray[b + SO_NODES_NUM];
+                    y = b;
+                }
+                if (childNodePidArray[b + SO_NODES_NUM] < nodeMax){
+                    nodeMin = childNodePidArray[b + SO_NODES_NUM];
+                    j = b;
+                }
+            }
+            if ( c < *shmIndiceBloccoPtr){
+                    c++;
+            }            
+            printf("P.NODO MAX [%d] ha bilancio di: %d\n", childNodePidArray[y], nodeMax);
+            printf("P.NODO MIN [%d] ha bilancio di: %d\n", childNodePidArray[j], nodeMin);
+        }else{
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                }
+
+                printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
+
+                if ( c < *shmIndiceBloccoPtr){
+                    c++;
+                }
+            }
         }
         printf("\n");
 #endif
@@ -1096,7 +1137,7 @@ int attesaRicezione(){
 /*TODO
 1.modificare la funzione di attesa non attiva da usare sia per i nodi che per gli utenti - V
 2.funzione che calcola il budget dell'utente prima di inviare alcuna transazione - V
-3.Il master deve stampare ogni secondo il bilancio di tutti i nodi presenti sul REGSTRO - X
+3.Il master deve stampare ogni secondo il bilancio di tutti i nodi presenti sul REGSTRO - V
 -si potrebbe aggiungere un campo alla struct dove aggiorniamo il budget corrente
 4.Mascherare i segnali prima e smascherarli subito dopo dell'attesa - V
 5.Aggiungere tempi di attesa - V
