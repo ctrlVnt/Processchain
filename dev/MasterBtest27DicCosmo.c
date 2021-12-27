@@ -1075,7 +1075,8 @@ int scelgoNodo(){
 void sendTransaction(){
       shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
     if (shmArrayUsersPidPtr[i].bilancio >= 2)
-                {
+                {	
+                	
                     /*printf("Cerco di riservare il semaforo\n");*/
                     /*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
                     
@@ -1092,11 +1093,11 @@ void sendTransaction(){
 
                     if (errno == EAGAIN)
                     {
-#if(ENABLE_TEST )        /*transaction pool piena*/
+#if(ENABLE_TEST == 0)        /*transaction pool piena*/
                         printf("2. soRetry: %d pid: %d -> SEMAFORO OCCUPATO\n", soRetry, getpid());
 #endif
                         soRetry--;
-                        sleep(20);
+                        sleep(50);
                     }
                     else
                     {
@@ -1110,7 +1111,7 @@ void sendTransaction(){
                         /*printf("Ho impostato il timestamp%d\n", getpid());*/
                         transazioneInvio.timestamp = timestampTransazione;
                         quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
-                        /*printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);*/
+                        printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);
 #if(ENABLE_TEST)
                         printf("[%d] Invio %d\n", getpid(), quantita);
 #endif
@@ -1152,14 +1153,20 @@ void sendTransaction(){
                 }
                 else
                 {
-#if(ENABLE_TEST)
+#if(ENABLE_TEST==0)
                 printf("2.5. soRetry: %d pid: %d -> BUDGET INSUFFICIENTE DI: %d\n", soRetry, getpid(), shmArrayUsersPidPtr[i].bilancio);
 #endif
                     soRetry--;
-                    sleep(20);
+                    sleep(50);
                 }
 
                 shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
+}
+
+int sleepUtente(){
+	(SO_USERS_NUM /(SO_NODES_NUM*(SO_TP_SIZE-(SO_BLOCK_SIZE - 1))))*3;  /*FORSE più ragionevole*/
+	(((SO_TP_SIZE - (SO_BLOCK_SIZE -1))*SO_NODES_NUM) / SO_USERS_NUM) * 20;
+	
 }
               
 
