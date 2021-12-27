@@ -55,6 +55,24 @@ typedef struct transazione_ds
     int reward;
 } transazione;
 
+/*struct per invio messaggio*/
+typedef struct mymsg
+{
+    long mtype;
+    transazione transazione;
+} message;
+
+/*struttura che tiene traccia dello stato dell'utente*/
+typedef struct nodo_ds
+{
+    /*id della sua coda di messaggi*/
+    int mqId;
+    /*Proposta di RICCARDO*/
+    int budget;
+    /*getpid()*/
+    int nodoPid;
+    int transazioniPendenti;
+} nodo;
 /***********/
 
 /*VARIABILI GLOBALI*/
@@ -67,13 +85,13 @@ long soMinTransProcNsec;
 /**/
 long soMaxTransProcNsec;
 /*ID della SM degli'ID delle CODE di messaggi alla quale devo fare l'attach*/
-int idSharedMemoryTutteCodeMessaggi;
+int idSharedMemoryTuttiNodi;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente gli id di tutte le code di messaggi, attenzione primo campo e' HEADER*/
-int *puntatoreSharedMemoryTutteCodeMessaggi;
+nodo *puntatoreSharedMemoryTuttiNodi;
 /*
 Il mio numero d'ordine
 Si assume che alla cella numeroOrdineMiaCodaMessaggi-esima nella SM puntato da 
- *puntatoreSharedMemoryTutteCodeMessaggi posso effettivamente recuperare l'ID della mia MQ.
+ *puntatoreSharedMemoryTuttiNodi posso effettivamente recuperare l'ID della mia MQ.
 */
 int numeroOrdineMiaCodaMessaggi;
 /*Id della mia coda di messaggi*/
@@ -109,7 +127,7 @@ int numeroTotaleNodi;
 /*variabile struttura per effettuare le operazioni sul semaforo*/
 struct sembuf operazioniSemaforo;
 /*variabile determina ciclo di vita del nodo*/
-int nodo;
+int node;
 /*variabili d'appoggio*/
 int shmdtRisposta;
 
@@ -137,16 +155,16 @@ int main(int argc, char const *argv[])
     soMinTransProcNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[1], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(soMinTransProcNsec == 0 && errno == EINVAL)
     {
-        perror("- Errore di conversione");
+        perror("Errore di conversione");
         exit(EXIT_FAILURE);
     }
     else if((soMinTransProcNsec == LONG_MIN || soMinTransProcNsec == LONG_MAX) && errno == ERANGE)
     {
-        perror("- Errore ERANGE");
+        perror("Errore ERANGE");
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    printf("+ soMinTransProcNsec: %ld\n", soMinTransProcNsec);
+    printf("soMinTransProcNsec: %ld\n", soMinTransProcNsec);
     
     /*Recupero secondo parametro*/
     soMaxTransProcNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[2], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -166,20 +184,20 @@ int main(int argc, char const *argv[])
     /******************/
     
     /*ID DELLA SH DI TUTTE LE CODE DI MESSAGGI*/
-    idSharedMemoryTutteCodeMessaggi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[3], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
-    if(idSharedMemoryTutteCodeMessaggi == 0 && errno == EINVAL)
+    idSharedMemoryTuttiNodi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[3], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
+    if(idSharedMemoryTuttiNodi == 0 && errno == EINVAL)
     {
         perror("Errore di conversione");
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    printf("idSharedMemoryTutteCodeMessaggi: %d\n", idSharedMemoryTutteCodeMessaggi);
+    printf("idSharedMemoryTuttiNodi: %d\n", idSharedMemoryTuttiNodi);
     
     /*ID OK -- effettuo l'attach*/
-    puntatoreSharedMemoryTutteCodeMessaggi = (int *)shmat(idSharedMemoryTutteCodeMessaggi, NULL, 0);
-    if(*puntatoreSharedMemoryTutteCodeMessaggi == -1)
+    puntatoreSharedMemoryTuttiNodi = (nodo *)shmat(idSharedMemoryTuttiNodi, NULL, 0);
+    if(errno == EINVAL)
     {
-        perror("shmat");
+        perror("shmat puntatoreSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
     /*Recupero il mio numero d'ordine*/
@@ -191,7 +209,7 @@ int main(int argc, char const *argv[])
     }
     /*TEST*/
     printf("numeroOrdineMiaCodaMessaggi: %d\n", numeroOrdineMiaCodaMessaggi);
-    printf("ID mia coda di messaggi - %d\n", puntatoreSharedMemoryTutteCodeMessaggi[numeroOrdineMiaCodaMessaggi + 1]);
+    printf("ID mia coda di messaggi - %d\n", puntatoreSharedMemoryTuttiNodi[numeroOrdineMiaCodaMessaggi + 1].mqId);
 
     idSharedMemoryLibroMastro = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[5], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(idSharedMemoryLibroMastro == 0 && errno == EINVAL)
@@ -204,7 +222,7 @@ int main(int argc, char const *argv[])
 
     /*ID OK -- effettuo l'attach*/
     puntatoreSharedMemoryLibroMastro = (transazione *)shmat(idSharedMemoryLibroMastro, NULL, 0);
-    if(errno == EINVAL)
+    if(errno == 22)
     {
         perror("shmat puntatoreSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
@@ -262,11 +280,11 @@ int main(int argc, char const *argv[])
 
     /*POSSO INIZIARE A GESTIRE LE TRANSAZIONI*/
 
-    nodo = NODO_CONTINUE;
-    while(nodo)
+    node = NODO_CONTINUE;
+    while(node)
     {
         /*TODO*/
-        sleep(3);
+        sleep(2);
     }
 
     /*****************************************/
@@ -286,10 +304,10 @@ int main(int argc, char const *argv[])
         perror("shmdt puntatoreSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
     }
-    shmdtRisposta = shmdt(puntatoreSharedMemoryTutteCodeMessaggi);
+    shmdtRisposta = shmdt(puntatoreSharedMemoryTuttiNodi);
     if(shmdtRisposta == -1)
     {
-        perror("shmdt puntatoreSharedMemoryTutteCodeMessaggi");
+        perror("shmdt puntatoreSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
     printf("Risorse deallocate correttamente\n");
@@ -326,6 +344,6 @@ void parseThenStoreParameter(int* dest, char const *argv[], int num, int flag)
 
 void sigusr1Handler(int sigNum)
 {
-    printf("SIGUSR1 ricevuto\n");
-    nodo = NODO_STOP;
+    printf("NODO SIGUSR1 ricevuto\n");
+    node = NODO_STOP;
 }
