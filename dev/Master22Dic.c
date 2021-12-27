@@ -709,14 +709,15 @@ int main()
                 printf("\n");
             }
             master = 0;
-            if (contatoreUtentiVivi <= 1)
-            {
+            /*ho commentato*/
+          /*  if (contatoreUtentiVivi <= 1)
+            {*/
                 for (i = 0; i < SO_NODES_NUM; i++)
                 {
                     kill(childNodePidArray[i], SIGUSR1);
                     TEST_ERROR;
                 }
-            }
+           /* }*/
             for (i = 0; i < SO_USERS_NUM; i++)
             {
                 if (shmArrayUsersPidPtr[i].stato != USER_KO)
@@ -931,7 +932,7 @@ void signalHandler(int sigNum)
     {
     case SIGUSR1:
         printf("SONO HANDLER DEL NODO!\n");
-        printf("%d di transazioni rimasti no gestite nella TP", SO_TP_SIZE - semctl(semSetMsgQueueId, j, GETVAL));
+        printf("----------%d di transazioni rimasti no gestite nella TP nodo -> %d----------\n", SO_TP_SIZE - semctl(semSetMsgQueueId, j, GETVAL), getpid());
         /*eseguo detach shared memory nel nodo -> da implementare nella suddivisione in moduli*/
         shmdt(shmLibroMastroPtr);
         shmdt(shmIndiceBloccoPtr);
