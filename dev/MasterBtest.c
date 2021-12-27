@@ -168,6 +168,9 @@ void attesaNonAttiva(long, long);
 void signalHandler(int);
 /*calcolo del bilancio*/
 int calcoloBilancio();
+/*funzione che sceglie casualmente un nodo a cui inviare*/
+int scelgoNodo();
+
 
 int main()
 {
