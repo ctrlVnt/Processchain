@@ -323,6 +323,7 @@ void sigusr1Handler(int sigNum)
 }
 
 /*funzione che restituisce il pid del utente random*/
+/*da cambiare*/
 int scegliUtenteRandom(int max)
 {
     int pidRandom;

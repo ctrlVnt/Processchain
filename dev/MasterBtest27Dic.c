@@ -168,6 +168,8 @@ void attesaNonAttiva(long, long);
 void signalHandler(int);
 /*calcolo del bilancio*/
 int calcoloBilancio();
+/*Invio transazione*/
+void sendTransaction();
 
 int main()
 {
@@ -215,7 +217,8 @@ int main()
 #if (ENABLE_TEST)
     printf("\nID libro mastro[%d]\n", shmIdMastro);
 #endif
-
+    printf("PROCESSO MASTER: %d\n", getpid());
+    sleep(10);
     /* Attach del libro mastro alla memoria condivisa*/
     shmLibroMastroPtr = (transazione *)shmat(shmIdMastro, NULL, 0);
     TEST_ERROR;
@@ -414,7 +417,7 @@ int main()
                 transazioneReward.quantita = 0;
 
 /*Controllo che il riempimento del blocco sia avvenuto con successo*/
-#if (ENABLE_TEST == 0)
+#if (ENABLE_TEST)
                 printf("\nTerminato il riempimento del blocco\n");
                 for (a = 0; a < SO_BLOCK_SIZE; a++)
                 {
@@ -571,96 +574,12 @@ int main()
 #if(ENABLE_TEST)
                 printf("[%d]Verifico budget -> %d\n", getpid(), SO_BUDGET_INIT);
 #endif
-                if (shmArrayUsersPidPtr[i].bilancio >= 2)
-                {
-                    /*printf("Cerco di riservare il semaforo\n");*/
-                    /*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
-                    
-                    /*srand(time(NULL));
-                    nodoScelto = rand() % SO_NODES_NUM;*/
-
-                    nodoScelto = scelgoNodo();
-                    
-                    /*Verifico disponibilità nodo*/
-                    sops.sem_flg = IPC_NOWAIT;
-                    sops.sem_num = nodoScelto;
-                    sops.sem_op = -1;
-                    semop(semSetMsgQueueId, &sops, 1);
-
-                    if (errno == EAGAIN)
-                    {
-#if(ENABLE_TEST)        /*transaction pool piena*/
-                        printf("2. soRetry: %d pid: %d -> SEMAFORO OCCUPATO\n", soRetry, getpid());
-#endif
-                        soRetry--;
-                        sleep(1);
-                    }
-                    else
-                    {
-                        /*printf("Semaforo libero -> L'ho riservato\n");*/
-                        /*printf("4.%d sto creando una transazione\n", getpid());*/
-                        /*la transaction pool ha spazio per la mia transazione*/
-                        transazioneInvio.sender = getpid();
-                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM - 1, getpid(), shmArrayUsersPidPtr);
-                        /*prendo il timestamp*/
-                        clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
-                        /*printf("Ho impostato il timestamp%d\n", getpid());*/
-                        transazioneInvio.timestamp = timestampTransazione;
-                        quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
-                        /*printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);*/
-#if(ENABLE_TEST)
-                        printf("[%d] Invio %d\n", getpid(), quantita);
-#endif
-                        reward = (quantita * SO_REWARD) / 100;
-                        if (reward == 0)
-                        {
-                            reward = 1;
-                        }
-                        transazioneInvio.reward = reward;
-                        transazioneInvio.quantita = quantita - reward;
-                        shmArrayUsersPidPtr[i].bilancio -= quantita;
-#if(ENABLE_TEST)
-                        printf("[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
-#endif
-                        /*creo messaggio da inviare sulla coda di messaggi*/
-                        messaggio.mtype = getpid();
-                        messaggio.transazione = transazioneInvio;
-                        msgsnd(shmArrayNodeMsgQueuePtr[nodoScelto], &messaggio, sizeof(transazione), 0); /*prima era IPC_NOWAIT*/
-                        TEST_ERROR;
-                        soRetry = SO_RETRY;
-                        /*attesa non attiva*/
-                        /*maschero - SIGUSR2*/
-                        /*printf("Transazione creata,ATTESA NON ATTIVA INIZIATA %d\n", getpid());*/
-                        attesaNonAttiva(SO_MIN_TRANS_GEN_NSEC, SO_MAX_TRANS_GEN_NSEC);
-                        /*printf("Transazione creata,ATTESA NON ATTIVA FINITA %d\n", getpid());*/
-                        /*smaschera - SIGINT, SIGSTOP*/
-
-/*#if (ENABLE_TEST)
-                        printf("%d ID CODA DI MESSAGGI A CUI INVIO %d VALORE: %d\n", getpid(), *(shmArrayNodeMsgQueuePtr + nodoScelto), transazioneInvio.quantita);
-#endif*/
-                        /*Test rilascio semaforo
-                        sops.sem_flg = IPC_NOWAIT;
-                        sops.sem_num = nodoScelto;
-                        sops.sem_op = 1;
-                        semop(semSetMsgQueueId, &sops, 1);*/
-                        /*todo attesa*/
-                        /*release delle risorse da mettere nel nodo*/
-                    }
-                }
-                else
-                {
-#if(ENABLE_TEST)
-                    printf("2.5. soRetry: %d pid: %d -> BUDGET INSUFFICIENTE\n", soRetry, getpid());
-#endif
-                    soRetry--;
-                    sleep(1);
-                }
-                shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
-                /*printf("5.INIZIO NUOVO CICLO CREAZIONE TRANSAZIONE %d\n", getpid());*/
+            sendTransaction();
             }
 #if(ENABLE_TEST)            /*AGGIORNARE STATO UTENTE NELL'ARRAY QUANDO MUORE*/
             printf("3.STO MORENDO...AIUTOOOO.....\n");
 #endif
+            printf("[%d]MUOIO CON BILANCIO: %d\n", getpid(), shmArrayUsersPidPtr[i].bilancio);
             shmArrayUsersPidPtr[i].stato = USER_KO;
             exit(EXIT_PREMAT);
             break;
@@ -809,13 +728,13 @@ int main()
                 printf("|");
                 for (c = 0; c < SO_BLOCK_SIZE; c++)
                 {
-                    /*if(c == SO_BLOCK_SIZE-1){
-                        printf("%03d| PID: %d",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita, shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].receiver);
+                    if(c == SO_BLOCK_SIZE-1){
+                        printf("%05d| PID: %d",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita, shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].receiver);
                     }else{
-                        printf("%03d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);
-                    }*/
+                        printf("%05d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);
+                    }
                     /*printf("%03d ----> %d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita, shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].receiver);*/
-                    printf("%03d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);
+                    /*printf("%03d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);*/
                 }
                 printf("\n");
             }
@@ -1008,7 +927,7 @@ int calcoloDenaroInvio(int budget)
     /*suppongo che la transazione minima abbia quantita == 1 e reward == 1*/
     do
     {
-        res = rand() % (budget);
+        res = (rand() % (budget)) / 5;
 
         if (res == 1)
         {
@@ -1154,3 +1073,91 @@ int scelgoNodo(){
 8.Bisogna tenere conto degli utenti vivi - V
 9.Impostare segnale invio transazione spontanea - X
 */
+
+void sendTransaction(){
+    if (shmArrayUsersPidPtr[i].bilancio >= 2)
+                {
+                    /*printf("Cerco di riservare il semaforo\n");*/
+                    /*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
+                    
+                    /*srand(time(NULL));
+                    nodoScelto = rand() % SO_NODES_NUM;*/
+
+                    nodoScelto = scelgoNodo();
+                    
+                    /*Verifico disponibilità nodo*/
+                    sops.sem_flg = IPC_NOWAIT;
+                    sops.sem_num = nodoScelto;
+                    sops.sem_op = -1;
+                    semop(semSetMsgQueueId, &sops, 1);
+
+                    if (errno == EAGAIN)
+                    {
+#if(ENABLE_TEST )        /*transaction pool piena*/
+                        printf("2. soRetry: %d pid: %d -> SEMAFORO OCCUPATO\n", soRetry, getpid());
+#endif
+                        soRetry--;
+                        sleep(1);
+                    }
+                    else
+                    {
+                        /*printf("Semaforo libero -> L'ho riservato\n");*/
+                        /*printf("4.%d sto creando una transazione\n", getpid());*/
+                        /*la transaction pool ha spazio per la mia transazione*/
+                        transazioneInvio.sender = getpid();
+                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM - 1, getpid(), shmArrayUsersPidPtr);
+                        /*prendo il timestamp*/
+                        clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
+                        /*printf("Ho impostato il timestamp%d\n", getpid());*/
+                        transazioneInvio.timestamp = timestampTransazione;
+                        quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
+                        /*printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);*/
+#if(ENABLE_TEST)
+                        printf("[%d] Invio %d\n", getpid(), quantita);
+#endif
+                        reward = (quantita * SO_REWARD) / 100;
+                        if (reward == 0)
+                        {
+                            reward = 1;
+                        }
+                        transazioneInvio.reward = reward;
+                        transazioneInvio.quantita = quantita - reward;
+                        shmArrayUsersPidPtr[i].bilancio -= quantita;
+#if(ENABLE_TEST)
+                        printf("[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
+#endif
+                        /*creo messaggio da inviare sulla coda di messaggi*/
+                        messaggio.mtype = getpid();
+                        messaggio.transazione = transazioneInvio;
+                        msgsnd(shmArrayNodeMsgQueuePtr[nodoScelto], &messaggio, sizeof(transazione), 0); /*prima era IPC_NOWAIT*/
+                        TEST_ERROR;
+                        soRetry = SO_RETRY;
+                        /*attesa non attiva*/
+                        /*maschero - SIGUSR2*/
+                        /*printf("Transazione creata,ATTESA NON ATTIVA INIZIATA %d\n", getpid());*/
+                        attesaNonAttiva(SO_MIN_TRANS_GEN_NSEC, SO_MAX_TRANS_GEN_NSEC);
+                        /*printf("Transazione creata,ATTESA NON ATTIVA FINITA %d\n", getpid());*/
+                        /*smaschera - SIGINT, SIGSTOP*/
+
+/*#if (ENABLE_TEST)
+                        printf("%d ID CODA DI MESSAGGI A CUI INVIO %d VALORE: %d\n", getpid(), *(shmArrayNodeMsgQueuePtr + nodoScelto), transazioneInvio.quantita);
+#endif*/
+                        /*Test rilascio semaforo
+                        sops.sem_flg = IPC_NOWAIT;
+                        sops.sem_num = nodoScelto;
+                        sops.sem_op = 1;
+                        semop(semSetMsgQueueId, &sops, 1);*/
+                        /*todo attesa*/
+                        /*release delle risorse da mettere nel nodo*/
+                    }
+                }
+                else
+                {
+#if(ENABLE_TEST == 0)
+                    printf("2.5. soRetry: %d pid: %d -> BUDGET INSUFFICIENTE DI: %d\n", soRetry, getpid(), shmArrayUsersPidPtr[i].bilancio);
+#endif
+                    soRetry--;
+                    sleep(1);
+                }
+                shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
+}
