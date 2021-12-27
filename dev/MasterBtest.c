@@ -153,6 +153,8 @@ int *childNodePidArray; /*array contenente i pid dei processi NODI*/
 int contatoreUtentiVivi;
 /*indice per calcolo bilancio*/
 int ultimoBloccoControllato;
+/*VARIABILE PER TEST HANDLER*/
+int numerOrdineNodo;
 
 /*Inizializza le variabili globali da un file di input TXT. */
 int read_all_parameters();
@@ -166,8 +168,9 @@ void attesaNonAttiva(long, long);
 void signalHandler(int);
 /*calcolo del bilancio*/
 int calcoloBilancio();
-/*solo quando fa un SO_RETRY --*/
-int attesaRicezione();
+/*funzione che sceglie casualmente un nodo a cui inviare*/
+int scelgoNodo();
+
 
 int main()
 {
@@ -288,7 +291,7 @@ int main()
 #if (ENABLE_TEST)
     printf("\nLa shared memory dell'array contenente gli ID delle message queue è: %d\n", shmIdUtente);
 #endif*/
-    /*inizializzazione array child NODE PID*/
+    /*inizializzazione array child NODE PID con budget di ognuno*/
     childNodePidArray = (int *)calloc(SO_NODES_NUM * 2, sizeof(int));
     TEST_ERROR;
 
@@ -382,12 +385,12 @@ int main()
                 }
 /*esegue la stampa*/
 #if (ENABLE_TEST)
-                printf("STAMPO STATO TRANSLATION POOL\n");
+                printf("\nSTAMPO STATO TRANSLATION POOL\n");
                 /*per un test corretto non devo avere valori quantita == 0 -> quantita che viene scartata durante la creazione
                   della transazione e di conseguenza mai inviata*/
                 for (a = 0; a < SO_TP_SIZE; a++)
                 {
-                    printf("TP indice: %d con quantita: %d\n", a, transactionPool[a].quantita);
+                    printf("[%d]TP indice: %d con quantita: %d\n", getpid(), a, transactionPool[a].quantita);
                 }
                 printf("\nCOMINCIO RIEMPIMENTO BLOCCO\n");
 #endif
@@ -414,13 +417,13 @@ int main()
                 transazioneReward.quantita = 0;
 
 /*Controllo che il riempimento del blocco sia avvenuto con successo*/
-/*#if (ENABLE_TEST)
-                printf("Terminato il riempimento del blocco\n");
+#if (ENABLE_TEST == 0)
+                printf("\nTerminato il riempimento del blocco\n");
                 for (a = 0; a < SO_BLOCK_SIZE; a++)
                 {
-                    printf("Ho inserito in pos: %d, una transazione con quantita': %d\n", a, bloccoInvio[a].quantita);
+                    printf("[%d]Ho inserito in pos: %d, una transazione con quantita': %d\n",getpid(), a, bloccoInvio[a].quantita);
                 }
-#endif*/
+#endif
                 attesaNonAttiva(SO_MIN_TRANS_PROC_NSEC, SO_MAX_TRANS_PROC_NSEC);
                 /*send al libr mastro e liberare risorse da semaforo*/
                 sops.sem_flg = 0;
@@ -495,6 +498,7 @@ int main()
             exit(EXIT_SUCCESS);
         default:
             childNodePidArray[i] = childPid;
+            childNodePidArray[SO_NODES_NUM + i] = 0;
 
 #if (ENABLE_TEST)
             printf("Child NODE %d e' stato creato e memorizzato nella struttura\n", childNodePidArray[i]);
@@ -559,6 +563,8 @@ int main()
 
             soRetry = SO_RETRY;
 
+            numerOrdineNodo = i;
+
             while (soRetry != 0)
             {   /*il ciclo si ferma quando soRetry vale 0*/
 #if(ENABLE_TEST)
@@ -572,8 +578,12 @@ int main()
                 {
                     /*printf("Cerco di riservare il semaforo\n");*/
                     /*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
-                    srand(getpid());
-                    nodoScelto = rand() % SO_NODES_NUM;
+                    
+                    /*srand(time(NULL));
+                    nodoScelto = rand() % SO_NODES_NUM;*/
+
+                    nodoScelto = scelgoNodo();
+                    
                     /*Verifico disponibilità nodo*/
                     sops.sem_flg = IPC_NOWAIT;
                     sops.sem_num = nodoScelto;
@@ -594,7 +604,7 @@ int main()
                         /*printf("4.%d sto creando una transazione\n", getpid());*/
                         /*la transaction pool ha spazio per la mia transazione*/
                         transazioneInvio.sender = getpid();
-                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM, getpid(), shmArrayUsersPidPtr);
+                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM - 1, getpid(), shmArrayUsersPidPtr);
                         /*prendo il timestamp*/
                         clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
                         /*printf("Ho impostato il timestamp%d\n", getpid());*/
@@ -611,6 +621,7 @@ int main()
                         }
                         transazioneInvio.reward = reward;
                         transazioneInvio.quantita = quantita - reward;
+                        shmArrayUsersPidPtr[i].bilancio -= quantita;
 #if(ENABLE_TEST)
                         printf("[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
 #endif
@@ -637,7 +648,6 @@ int main()
                         semop(semSetMsgQueueId, &sops, 1);*/
                         /*todo attesa*/
                         /*release delle risorse da mettere nel nodo*/
-                        shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();
                     }
                 }
                 else
@@ -647,8 +657,8 @@ int main()
 #endif
                     soRetry--;
                     sleep(1);
-                    shmArrayUsersPidPtr[i].bilancio = attesaRicezione();
                 }
+                shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
                 /*printf("5.INIZIO NUOVO CICLO CREAZIONE TRANSAZIONE %d\n", getpid());*/
             }
 #if(ENABLE_TEST)            /*AGGIORNARE STATO UTENTE NELL'ARRAY QUANDO MUORE*/
@@ -735,21 +745,22 @@ int main()
             printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin.userPid, pidmin.bilancio);
         }
         if (SO_NODES_NUM < 20){
-            for(b = 0; b < SO_NODES_NUM; b++){
-                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
-                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
-                }
-
-                printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
-
-                if ( c < *shmIndiceBloccoPtr){
-                    c++;
+            for (c; c < *(shmIndiceBloccoPtr); c++){
+                for(b = 0; b < SO_NODES_NUM; b++){
+                    if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                        childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                    }
                 }
             }
-        }else{
             for(b = 0; b < SO_NODES_NUM; b++){
-                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
-                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                    printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
+                }
+        }else{
+            for (c; c < *(shmIndiceBloccoPtr); c++){
+                for(b = 0; b < SO_NODES_NUM; b++){
+                    if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                        childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                    }
                 }
             }
             for(b = 0; b < SO_NODES_NUM; b++){
@@ -757,14 +768,11 @@ int main()
                     nodeMax = childNodePidArray[b + SO_NODES_NUM];
                     y = b;
                 }
-                if (childNodePidArray[b + SO_NODES_NUM] < nodeMax){
+                if (childNodePidArray[b + SO_NODES_NUM] < nodeMin){
                     nodeMin = childNodePidArray[b + SO_NODES_NUM];
                     j = b;
                 }
-            }
-            if ( c < *shmIndiceBloccoPtr){
-                    c++;
-            }            
+            }                     
             printf("P.NODO MAX [%d] ha bilancio di: %d\n", childNodePidArray[y], nodeMax);
             printf("P.NODO MIN [%d] ha bilancio di: %d\n", childNodePidArray[j], nodeMin);
         }
@@ -796,7 +804,7 @@ int main()
         if (*(shmIndiceBloccoPtr) == SO_REGISTRY_SIZE || contatoreUtentiVivi <= 1)
         {
             /*STAMPO CONDIZIONI DI USCITA*/
-#if(ENABLE_TEST)
+#if(ENABLE_TEST == 0)
             printf("valore shmIndiceBlocco %d\n", *(shmIndiceBloccoPtr));
             /*stampo stato libro mastro dopo l'esecuzione*/
             for (b = 0; b < *(shmIndiceBloccoPtr); b++)
@@ -804,6 +812,12 @@ int main()
                 printf("|");
                 for (c = 0; c < SO_BLOCK_SIZE; c++)
                 {
+                    /*if(c == SO_BLOCK_SIZE-1){
+                        printf("%03d| PID: %d",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita, shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].receiver);
+                    }else{
+                        printf("%03d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);
+                    }*/
+                    /*printf("%03d ----> %d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita, shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].receiver);*/
                     printf("%03d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);
                 }
                 printf("\n");
@@ -970,21 +984,30 @@ Alcune assunzioni:
 int getRandomUser(int max, int myPid, utente *shmArrayUsersPidPtr)
 {
     int userPidId;
-    srand(myPid);
+    /*SPERIMENTALE*/
+    struct timespec tempo;
+    clock_gettime(CLOCK_REALTIME, &tempo);
+    /*FINE SPERIMENTALE*/
 
+    srand(tempo.tv_nsec); /*il pid rimane sempre quello per ogni processo*/
+    /*
     do
     {
-        /*printf("6.Sto scegliendo a chi inviare la transazione%d\n", getpid());*/
         userPidId = rand() % max;
     } while (shmArrayUsersPidPtr[userPidId].userPid == myPid && shmArrayUsersPidPtr[userPidId].stato != USER_KO);
-    /*printf("8.Ho scelto a chi inviare la transazione%d\n", getpid());*/
+    */
+    userPidId = (rand() % (max - 0 + 1)) + 0;
+   
     return shmArrayUsersPidPtr[userPidId].userPid;
 }
 
 int calcoloDenaroInvio(int budget)
 {
     int res = 0;
-    srand(getpid());
+    struct timespec tempo;
+    clock_gettime(CLOCK_REALTIME, &tempo);
+    srand(tempo.tv_nsec);
+    /*srand(getpid);*/
     /*suppongo che la transazione minima abbia quantita == 1 e reward == 1*/
     do
     {
@@ -995,7 +1018,7 @@ int calcoloDenaroInvio(int budget)
             res++;
         }
     } while (res < 1);
-
+    
     return res;
 }
 
@@ -1042,9 +1065,9 @@ void signalHandler(int sigNum)
         exit(EXIT_SUCCESS);
         break;
     case SIGUSR2:
-        /* IPOTIZZATO INVIO CON SEGNALE
-                    srand(getpid());
-                    nodoScelto = rand() % SO_NODES_NUM;
+        /* IPOTIZZATO INVIO CON SEGNALE */
+                    
+                    nodoScelto = scelgoNodo();
                     
                     sops.sem_flg = IPC_NOWAIT;
                     sops.sem_num = nodoScelto;
@@ -1061,19 +1084,13 @@ void signalHandler(int sigNum)
                         transazioneInvio.timestamp = timestampTransazione;
                         quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
                         
-#if(ENABLE_TEST)
-                        printf("[%d] Invio %d\n", getpid(), quantita);
-#endif
                         reward = (quantita * SO_REWARD) / 100;
                         if (reward == 0)
                         {
                             reward = 1;
                         }
                         transazioneInvio.reward = reward;
-                        transazioneInvio.quantita = quantita - reward;
-#if(ENABLE_TEST)
-                        printf("SIGUSR2[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
-#endif
+                        transazioneInvio.quantita = 707070;
                         
                         messaggio.mtype = getpid();
                         messaggio.transazione = transazioneInvio;
@@ -1083,8 +1100,9 @@ void signalHandler(int sigNum)
                         
                         attesaNonAttiva(SO_MIN_TRANS_GEN_NSEC, SO_MAX_TRANS_GEN_NSEC);
 
-                        shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();
-                    }*/
+                        shmArrayUsersPidPtr[numerOrdineNodo].bilancio = calcoloBilancio(shmArrayUsersPidPtr[numerOrdineNodo]);
+                        printf("\n[%d] Ho inviato una transazione con SIGUSR2 A[%d] con -------> %d\n", getpid(), nodoScelto, messaggio.transazione.quantita);
+                    }
                         
 #if(ENABLE_TEST)
         printf("SONO HANDLER DELL'UTENTE!\n");
@@ -1105,55 +1123,28 @@ void userTermPremat(int sigNum)
     contatoreUtentiVivi--;
 }
 
-int calcoloBilancio(){
+int calcoloBilancio(utente bilanciato){
     int u;
-    SO_BUDGET_INIT -= quantita;
-    /*while(ultimoBloccoControllato < *(shmIndiceBloccoPtr)){
-        for (u = 0; u < SO_BLOCK_SIZE -1; u++){
-        if (getpid() == shmLibroMastroPtr[ultimoBloccoControllato + u * *(shmIndiceBloccoPtr)].receiver ){
-            SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato + u * *(shmIndiceBloccoPtr)].quantita;
-        }
-    
-#if(ENABLE_TEST)
-            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
-#endif
-        }
-        ultimoBloccoControllato++;
-    }*/
     for (ultimoBloccoControllato; ultimoBloccoControllato < *(shmIndiceBloccoPtr); ultimoBloccoControllato++){
         for(u = 0; u < SO_BLOCK_SIZE - 1; u++){
             if(getpid() == shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].receiver){
-                SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
-            }
-/*#if(ENABLE_TEST)
-            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
-#endif*/
-        }
-    }
-
-    return SO_BUDGET_INIT;
-}
-
-int attesaRicezione(){
-    int u;
-    /*while(ultimoBloccoControllato < *(shmIndiceBloccoPtr)){
-        if (getpid() == shmLibroMastroPtr[ultimoBloccoControllato].receiver ){
-            SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato].quantita;
-#if(ENABLE_TEST)
-            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
-#endif
-        }
-        ultimoBloccoControllato++;
-    }*/
-    for (ultimoBloccoControllato; ultimoBloccoControllato < *(shmIndiceBloccoPtr); ultimoBloccoControllato++){
-        for(u = 0; u < SO_BLOCK_SIZE - 1; u++){
-            if(getpid() == shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].receiver){
-                SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
+                bilanciato.bilancio += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
             }
         }
     }
-    return SO_BUDGET_INIT;
+
+    return bilanciato.bilancio;
 }
+
+int scelgoNodo(){
+    int nodoScelto;
+    struct timespec tempo;
+    clock_gettime(CLOCK_REALTIME, &tempo);
+    srand(tempo.tv_nsec + 1);
+    nodoScelto = (rand() % ((SO_NODES_NUM - 1) - 0 + 1)) + 0;
+    return nodoScelto;
+}
+
 /*TODO
 1.modificare la funzione di attesa non attiva da usare sia per i nodi che per gli utenti - V
 2.funzione che calcola il budget dell'utente prima di inviare alcuna transazione - V
