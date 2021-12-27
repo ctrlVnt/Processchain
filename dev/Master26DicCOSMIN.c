@@ -28,7 +28,7 @@
                 strerror(errno));                  \
     }
 
-#define ENABLE_TEST 1
+#define ENABLE_TEST 0
 
 typedef struct transazione_ds
 {                              /*inviata dal processo utente a uno dei processi nodo che la gestisce*/
@@ -68,6 +68,7 @@ typedef struct utente_ds
 {
     int stato;
     int userPid;
+    int bilancio;
 } utente;
 
 /*PER READ ALL PARAMETERS*/
@@ -113,7 +114,7 @@ int semLibroMastroId;
 struct sembuf sops;
 union semun semMsgQueueUnion; /*union semctl*/
 /*ATTENZIONE: la riga seguente contiene del codice che non rispetta lo standard c89*/
-/*unsigned short semMsgQueueValArr[SO_NODES_NUM];  /*dichiaro array di union semctl*/
+/*unsigned short semMsgQueueValArr[SO_NODES_NUM]; dichiaro array di union semctl*/
 /*ALTERNATIVA - allocazione dinamica con la calloc*/
 unsigned short *semMsgQueueValArr;
 /***************************************************************/
@@ -127,6 +128,7 @@ struct sigaction act;
 struct sigaction actOld;
 /************************************/
 /*VARIABILI AUSILIARI*/
+long int random_seed;
 int i;
 int j;
 int childPid;
@@ -150,19 +152,27 @@ int indiceTpInvioBlocco; /*indica prima cella con cui riempire il blocco*/
 int *childNodePidArray; /*array contenente i pid dei processi NODI*/
 /*contatore di processi vivi*/
 int contatoreUtentiVivi;
+/*indice per calcolo bilancio*/
+int ultimoBloccoControllato;
 
 /*Inizializza le variabili globali da un file di input TXT. */
 int read_all_parameters();
 /*Estraggo un receiver casuale per l'invio della transazione*/
-int getRandomUser(int max, int myPid, utente *shmArrayUsersPidPtr);
+int getRandomUser(int max, long int random_seed, utente *shmArrayUsersPidPtr);
 /*funzione calcolo denaro da inviare*/
-int calcoloDenaroInvio(int budget);
+int calcoloDenaroInvio(int budget, long random_seed);
 /*implementazione dell'attesa non attiva*/
 void attesaNonAttiva(long, long);
+/*handler*/
 void signalHandler(int);
+/*calcolo del bilancio*/
+void calcoloBilancio(int utente);
+/*solo quando fa un SO_RETRY --*/
+int attesaRicezione();
 
 int main()
 {
+    printf("MASTER ID: %d\n",getpid());
     /*indice test vari -> da cancellare poi*/
     int a;
     tpPiena = 0;
@@ -173,13 +183,10 @@ int main()
     unsigned short *TEST_GETALL_ARRAY;
 #endif
 
-/* SOLO PER TEST ->però read_all_parameters() necessaria a prescindere */
-#if (ENABLE_TEST)
     if (read_all_parameters() == -1)
     {
         fprintf(stderr, "Parsing failed!");
     }
-#endif
     contatoreUtentiVivi = SO_USERS_NUM; /*salvo in locale il numero di utenti vivi*/
 
     /*inizializzo array usando calloc con valore letto da file.txt causa std=c89 che non
@@ -208,7 +215,7 @@ int main()
 
 /* SOLO PER TEST */
 #if (ENABLE_TEST)
-    printf("\nid libro mastro[%d]\n", shmIdMastro);
+    printf("\nID libro mastro[%d]\n", shmIdMastro);
 #endif
 
     /* Attach del libro mastro alla memoria condivisa*/
@@ -219,10 +226,10 @@ int main()
     shmIdNodo = shmget(IPC_PRIVATE, SO_NODES_NUM * sizeof(int), 0600 | IPC_CREAT);
     shmArrayNodeMsgQueuePtr = (int *)shmat(shmIdNodo, NULL, 0); /*eseguo attach per riempire l'array di ID di code di messaggi*/
 
-/* SOLO PER TEST */
+/*
 #if (ENABLE_TEST)
     printf("\nLa shared memory dell'array contenente gli ID delle message queue è: %d\n", shmIdNodo);
-#endif
+#endif*/
 
     /*riempio l'arrayCodeID con gli ID delle code messaggi prima di entrare nel for per la creazione dei nodi*/
     for (i = 0; i < SO_NODES_NUM; i++)
@@ -231,14 +238,14 @@ int main()
         *(shmArrayNodeMsgQueuePtr + i) = msgQueueId;
     }
 
-/* SOLO PER TEST */
+/*
 #if (ENABLE_TEST)
     for (i = 0; i < SO_NODES_NUM; i++)
     {
         printf("STAMPO TUTTI GLI ID DELLE CODE DI MESSAGGI CREATE\n");
         printf("ID coda n %d = %d\n", i, *(shmArrayNodeMsgQueuePtr + i));
     }
-#endif
+#endif*/
 
     /*Inizializzo set semafori per gestire invio transazioni da parte degli utenti*/
     semSetMsgQueueId = semget(IPC_PRIVATE, SO_NODES_NUM, 0600 | IPC_CREAT);
@@ -255,10 +262,10 @@ int main()
     semMsgQueueUnion.array = semMsgQueueValArr;
 
     /*imposto valore semafori*/
-    semctl(semSetMsgQueueId, 0, SETALL, semMsgQueueUnion);
+    semctl(semSetMsgQueueId, 0, SETALL, semMsgQueueUnion.array);
     TEST_ERROR;
 
-/*SOLO PER TEST*/
+/*
 #if (ENABLE_TEST)
     TEST_GETALL.array = TEST_GETALL_ARRAY;
     semctl(semSetMsgQueueId, 0, GETALL, TEST_GETALL);
@@ -266,7 +273,7 @@ int main()
     {
         printf("Valore semaforo ID : %d -> %d\n", i, TEST_GETALL.array[i]);
     }
-#endif
+#endif*/
 
     /*inizializzazione memoria condivisa array PID processi utente*/
     shmIdUtente = shmget(IPC_PRIVATE, SO_USERS_NUM * sizeof(utente), 0600 | IPC_CREAT);
@@ -279,12 +286,12 @@ int main()
     sops.sem_op = SO_NODES_NUM + 1;
     semop(semSyncStartId, &sops, 1);
 
-/* SOLO PER TEST */
+/*
 #if (ENABLE_TEST)
     printf("\nLa shared memory dell'array contenente gli ID delle message queue è: %d\n", shmIdUtente);
-#endif
+#endif*/
     /*inizializzazione array child NODE PID*/
-    childNodePidArray = (int *)calloc(SO_NODES_NUM, sizeof(int));
+    childNodePidArray = (int *)calloc(SO_NODES_NUM * 2, sizeof(int));
     TEST_ERROR;
 
     /*creazione figli nodi con operazioni annesse*/
@@ -346,6 +353,7 @@ int main()
             transazioneReward.sender = REWARD_SENDER;
             transazioneReward.reward = 0;
             transazioneReward.quantita = 0;
+            transazioneReward.receiver = getpid();
             while (nodo)
             {
                 /*quando il semaforo è verde si riempie la Tp*/
@@ -354,45 +362,57 @@ int main()
                   con tpSize++ ad ogni inserimento nella transaction pool*/
                 while (tpPiena < SO_TP_SIZE)
                 {
-                    printf("valore semaforo j :%d nodo: %d\n", semctl(semSetMsgQueueId, j, GETVAL), getpid());
+                    /*printf("valore semaforo j :%d nodo: %d\n", semctl(semSetMsgQueueId, j, GETVAL), getpid());*/
                     TEST_ERROR;
                     /*SOLUZIONE ALTERNATIVA: if con continue*/
                     /*riceve il messaggio nella propria coda di messaggi*/
                     msgrcv(shmArrayNodeMsgQueuePtr[j], &myMsg, sizeof(transazione), 0, 0);
-#if (ENABLE_TEST)
-                    /*controllo che nessuna transazione letta venga sovrascritta in qualche modo*/
+                    /*TEST LETTURA DA CODA DI MESSAGGI*/
+                  /*  if(j == 5){
+                        printf("[%d]Valore quantita transazione appena letta: %d\n", getpid(), myMsg.transazione.quantita);
+                    }*/
+/*#if (ENABLE_TEST)
+                    controllo che nessuna transazione letta venga sovrascritta in qualche modo
                     printf("Valore quantita transazione appena letta: %d\n", myMsg.transazione.quantita);
-#endif
+#endif*/
                     TEST_ERROR;
                     tpPiena++;
-                    printf("mtype: %ld\n", myMsg.mtype);
+                    /*printf("mtype: %ld\n", myMsg.mtype);*/
 
-                    transactionPool[indiceTpCellaLibera++] = myMsg.transazione;
-
+                    transactionPool[indiceTpCellaLibera++] = myMsg.transazione;                
                     if (indiceTpCellaLibera == SO_TP_SIZE)
                     {
                         indiceTpCellaLibera = 0;
                     }
+                    /*Azzero transazione*/
+                    myMsg.transazione.quantita = 0;
+                    myMsg.transazione.receiver = -1;
+                    myMsg.transazione.sender = -1;
+                    myMsg.transazione.timestamp.tv_sec = 0;
+                    myMsg.transazione.timestamp.tv_nsec = 0;
+                    myMsg.transazione.reward = 0;
+
                 }
 /*esegue la stampa*/
-#if (ENABLE_TEST)
-                printf("Stampo stato transaction pool\n");
+
+                printf("NODO %d STAMPO STATO TRANSLATION POOL\n", getpid());
                 /*per un test corretto non devo avere valori quantita == 0 -> quantita che viene scartata durante la creazione
                   della transazione e di conseguenza mai inviata*/
                 for (a = 0; a < SO_TP_SIZE; a++)
                 {
                     printf("TP indice: %d con quantita: %d\n", a, transactionPool[a].quantita);
                 }
-                printf("Comincio riempimento blocco\n");
-#endif
+
+               /* printf("\nCOMINCIO RIEMPIMENTO BLOCCO\n");*/
+
                 /*semaforo è diventato zero e ora devo riempire il blocco*/
                 for (i = 0; i < SO_BLOCK_SIZE - 1; i++)
                 {
                     bloccoInvio[i] = transactionPool[indiceTpInvioBlocco++];
-#if (ENABLE_TEST)
-                    printf("Valore indiceTpInvioBlocco: %d\n", indiceTpInvioBlocco);
-                    printf("Ho inserito in pos: %d, una transazione con quantita': %d\n", i, bloccoInvio[i].quantita);
-#endif
+
+                 /*   printf("Valore indiceTpInvioBlocco: %d\n", indiceTpInvioBlocco);
+                    printf("Ho inserito in pos: %d, una transazione con quantita': %d\n", i, bloccoInvio[i].quantita);*/
+
                     /*transazione di reward*/
                     transazioneReward.quantita += bloccoInvio[i].reward;
 
@@ -408,13 +428,13 @@ int main()
                 transazioneReward.quantita = 0;
 
 /*Controllo che il riempimento del blocco sia avvenuto con successo*/
-#if (ENABLE_TEST)
+/*#if (ENABLE_TEST)
                 printf("Terminato il riempimento del blocco\n");
                 for (a = 0; a < SO_BLOCK_SIZE; a++)
                 {
                     printf("Ho inserito in pos: %d, una transazione con quantita': %d\n", a, bloccoInvio[a].quantita);
                 }
-#endif
+#endif*/
                 attesaNonAttiva(SO_MIN_TRANS_PROC_NSEC, SO_MAX_TRANS_PROC_NSEC);
                 /*send al libr mastro e liberare risorse da semaforo*/
                 sops.sem_flg = 0;
@@ -429,9 +449,11 @@ int main()
                 /*controllo id libro mastro per verificare se posso scrivere un blocco di transazioni, altrimenti sospendo il processo nodo*/
                 if (*(shmIndiceBloccoPtr) == SO_REGISTRY_SIZE)
                 {
+                        printf("------------------------SOSPENDO I NODI -------------------------");
 #if (ENABLE_TEST)
                     printf("CAPACITÀ MASSIMA LIBRO MASTRO RAGGIUNTA\n");
 #endif
+
                     sigsuspend(&maskSetForChild);
                 }
 
@@ -443,22 +465,22 @@ int main()
                     /* *(shmLibroMastroPtr + (*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + i)) = bloccoInvio[i];*/
                     shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + i] = bloccoInvio[i];
                 }
+                printf("[[%d]]INVIATO UN BLOCCO\n",getpid());
 
 /*Controllo di aver riempito il libro mastro in maniera corretta*/
+/*
 #if (ENABLE_TEST)
-                /*sleep(1);*/
                 for (a = 0; a < SO_BLOCK_SIZE; a++)
                 {
                     printf("LIBRO MASTRO in pos: %d con quantita: %d\n", a, shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + a].quantita);
-                    // printf("LIBRO MASTRO in pos: %d con quantita: %d\n", a, shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + a].quantita);
                 }
-#endif
+#endif/*
 
                 /*aggiornamento dell'indice*/
                 *(shmIndiceBloccoPtr) += 1;
-#if (ENABLE_TEST)
+/*#if (ENABLE_TEST)
                 printf("Valore indice blocco: %d\n", *(shmIndiceBloccoPtr));
-#endif
+#endif*/
 
                 /*rilascio delle risorse */
                 sops.sem_flg = 0;
@@ -473,9 +495,10 @@ int main()
                 sops.sem_op = (SO_BLOCK_SIZE - 1);
                 semop(semSetMsgQueueId, &sops, 1);
                 TEST_ERROR;
-                tpPiena -= SO_BLOCK_SIZE - 1;
+                tpPiena -= (SO_BLOCK_SIZE - 1);
+
 #if (ENABLE_TEST)
-                printf("1.tpPiena: %d\n", tpPiena);
+                printf("1.TP piena: %d\n", tpPiena);
 #endif
             }
 
@@ -522,6 +545,7 @@ int main()
         case 0:
             /*variabile da eliminare quando suddividiamo in moduli*/
             nodo = 0;
+            ultimoBloccoControllato = 0;
             /*maschero alcuni segnali*/
             sigemptyset(&maskSetForChild);                                 /*inizializzo empty set, maschera VUOTA*/
             sigaddset(&maskSetForChild, SIGINT);                           /*aggiungo SIGINT alla mashera*/
@@ -545,23 +569,58 @@ int main()
             sops.sem_op = 0;
             semop(semSyncStartId, &sops, 1);
 /* SOLO PER TEST*/
-#if (ENABLE_TEST)
+/*#if (ENABLE_TEST)
             printf("sono il figio: %d, in posizione: %d\n", getpid(), i);
-#endif
+#endif*/
 
             soRetry = SO_RETRY;
-
+         random_seed= getpid();
             while (soRetry != 0)
             {   /*il ciclo si ferma quando soRetry vale 0*/
-                /*CALCOLO BILANCIO UTENTE*/
-                /*da fare*/
-                printf("Verifico budget\n -> %d -> %d\n", SO_BUDGET_INIT, getpid());
-                if (SO_BUDGET_INIT >= 2)
+             random_seed++;
+#if(ENABLE_TEST)
+                printf("[%d]BUDGET BEGIN = %d\n", getpid(), SO_BUDGET_INIT);
+
+                /*CALCOLAVO BILANCIO UTENTE*/
+                
+#endif
+                printf("[%d]Verifico budget -> %d\n", getpid(), shmArrayUsersPidPtr[i].bilancio);
+                /*aggiunto*/
+                  calcoloBilancio(i);
+                if (shmArrayUsersPidPtr[i].bilancio >= 2)
                 {
-                    printf("Cerco di riservare il semaforo\n");
+                    /*printf("Cerco di riservare il semaforo\n");*/
                     /*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
-                    srand(getpid());
+                    srand(random_seed);
                     nodoScelto = rand() % SO_NODES_NUM;
+              /*      printf("NODO SCELTO : %d\n", nodoScelto);*/
+ /*creo transazione prima di riservare il semaforo -> maggiore concorrenza*/
+                        /*printf("4.%d sto creando una transazione\n", getpid());*/
+                        /*la transaction pool ha spazio per la mia transazione*/
+                        transazioneInvio.sender = getpid();
+                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM, random_seed, shmArrayUsersPidPtr);
+                        /*prendo il timestamp*/
+                        clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
+                        /*printf("Ho impostato il timestamp%d\n", getpid());*/
+                        transazioneInvio.timestamp = timestampTransazione;
+                        quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio, random_seed);
+                        /*printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);*/
+#if(ENABLE_TEST)
+                        printf("[%d] Invio %d\n", getpid(), quantita);
+#endif
+                        reward = (quantita * SO_REWARD) / 100;
+                        if (reward == 0)
+                        {
+                            reward = 1;
+                        }
+                        transazioneInvio.reward = reward;
+                        transazioneInvio.quantita = quantita - reward;
+#if(ENABLE_TEST)
+                        printf("[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
+#endif
+                        /*creo messaggio da inviare sulla coda di messaggi*/
+                        messaggio.mtype = getpid();
+                        messaggio.transazione = transazioneInvio;
                     /*Verifico disponibilità nodo*/
                     sops.sem_flg = IPC_NOWAIT;
                     sops.sem_num = nodoScelto;
@@ -570,51 +629,29 @@ int main()
 
                     if (errno == EAGAIN)
                     {
-                        /*transaction pool piena*/
+#if(ENABLE_TEST)        /*transaction pool piena*/
                         printf("2. soRetry: %d pid: %d -> SEMAFORO OCCUPATO\n", soRetry, getpid());
+#endif
                         soRetry--;
                         sleep(1);
                     }
                     else
                     {
-                        printf("Semaforo libero -> L'ho riservato\n");
-                        printf("4.%d sto creando una transazione\n", getpid());
-                        /*la transaction pool ha spazio per la mia transazione*/
-                        transazioneInvio.sender = getpid();
-                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM, getpid(), shmArrayUsersPidPtr);
-                        printf("Ho estratto l'utente a cui inviare la transazione %d\n", getpid());
-                        /*prendo il timestamp*/
-                        clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
-                        printf("Ho impostato il timestamp%d\n", getpid());
-                        transazioneInvio.timestamp = timestampTransazione;
-                        quantita = calcoloDenaroInvio(SO_BUDGET_INIT);
-
-                        printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);
-                        reward = (quantita * SO_REWARD) / 100;
-                        if (reward == 0)
-                        {
-                            reward = 1;
-                        }
-                        transazioneInvio.reward = reward;
-                        transazioneInvio.quantita = quantita - reward;
-                        /*sottraggo denaro appena inviato al mio budget*/
-                        SO_BUDGET_INIT -= quantita;
-                        /*creo messaggio da inviare sulla coda di messaggi*/
-                        messaggio.mtype = getpid();
-                        messaggio.transazione = transazioneInvio;
+                        /*C'ERA LA CREAZIONE DELLA TRANSAZIONE*/
+                        shmArrayUsersPidPtr[i].bilancio -= quantita;
                         msgsnd(shmArrayNodeMsgQueuePtr[nodoScelto], &messaggio, sizeof(transazione), 0); /*prima era IPC_NOWAIT*/
                         TEST_ERROR;
                         soRetry = SO_RETRY;
                         /*attesa non attiva*/
                         /*maschero - SIGUSR2*/
-                        printf("Transazione creata,ATTESA NON ATTIVA INIZIATA %d\n", getpid());
+                        /*printf("Transazione creata,ATTESA NON ATTIVA INIZIATA %d\n", getpid());*/
                         attesaNonAttiva(SO_MIN_TRANS_GEN_NSEC, SO_MAX_TRANS_GEN_NSEC);
-                        printf("Transazione creata,ATTESA NON ATTIVA FINITA %d\n", getpid());
+                        /*printf("Transazione creata,ATTESA NON ATTIVA FINITA %d\n", getpid());*/
                         /*smaschera - SIGINT, SIGSTOP*/
 
-#if (ENABLE_TEST)
+/*#if (ENABLE_TEST)
                         printf("%d ID CODA DI MESSAGGI A CUI INVIO %d VALORE: %d\n", getpid(), *(shmArrayNodeMsgQueuePtr + nodoScelto), transazioneInvio.quantita);
-#endif
+#endif*/
                         /*Test rilascio semaforo
                         sops.sem_flg = IPC_NOWAIT;
                         sops.sem_num = nodoScelto;
@@ -622,18 +659,23 @@ int main()
                         semop(semSetMsgQueueId, &sops, 1);*/
                         /*todo attesa*/
                         /*release delle risorse da mettere nel nodo*/
+                        /*shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();*/
                     }
                 }
                 else
                 {
+#if(ENABLE_TEST)
                     printf("2.5. soRetry: %d pid: %d -> BUDGET INSUFFICIENTE\n", soRetry, getpid());
+#endif
                     soRetry--;
                     sleep(1);
+                    /*shmArrayUsersPidPtr[i].bilancio = attesaRicezione();*/
                 }
-                printf("5.INIZIO NUOVO CICLO CREAZIONE TRANSAZIONE %d\n", getpid());
+                /*printf("5.INIZIO NUOVO CICLO CREAZIONE TRANSAZIONE %d\n", getpid());*/
             }
-            /*AGGIORNARE STATO UTENTE NELL'ARRAY QUANDO MUORE*/
+#if(ENABLE_TEST)            /*AGGIORNARE STATO UTENTE NELL'ARRAY QUANDO MUORE*/
             printf("3.STO MORENDO...AIUTOOOO.....\n");
+#endif
             shmArrayUsersPidPtr[i].stato = USER_KO;
             exit(EXIT_PREMAT);
             break;
@@ -642,6 +684,7 @@ int main()
             /* riempimento array PID utenti nella memoria condivisa */
             shmArrayUsersPidPtr[i].stato = USER_OK;
             shmArrayUsersPidPtr[i].userPid = childPid;
+            shmArrayUsersPidPtr[i].bilancio = SO_BUDGET_INIT;
             break;
         }
     }
@@ -657,25 +700,99 @@ int main()
 
     /*PARTE EFFETTIVA DEL MASTER*/
 
-/* SOLO PER TEST*/
+/*
 #if (ENABLE_TEST)
     for (i = 0; i < SO_USERS_NUM; i++)
     {
         printf("\nSTAMPO TUTTI GLI ID DEGLI UTENTI NELL'ARRAY CREATE\n");
         printf("PID utente %d = %d\n", i, shmArrayUsersPidPtr[i].userPid);
     }
-#endif
+#endif*/
 
     sleep(3);
     /*CONTROLLO indice libro mastro, se == SO_REGISTRY_SIZE allora mando segnale per terminare tutto */
     /*introduco controllo periodico capacità libro mastro, qui dovremo mettere anche le varie stampe intermedie*/
     int master = 1;
     int status = 0;
+    int pidmax;
+    int max;
+    utente pidmin;
+    utente fantoccio;
     int b;
-    int c;
+    int c = 0;
+    pidmin = shmArrayUsersPidPtr[1];
+    fantoccio = shmArrayUsersPidPtr[1];
+    int nodeMax = 0;
+    int nodeMin = 0;
+    int y = 0;
+    int j = 0;
     while (master)
     {
         sleep(1);
+#if(ENABLE_TEST)  /*== 0 se voglio attivare questo quando gli altri test sono disattivati*/
+        max = 0;
+        printf("\nPROCESSI UTENTE ATTIVI: %d\n", contatoreUtentiVivi);
+        printf("PROCESSI NODO ATTIVI: %d\n", SO_NODES_NUM);
+        
+        printf("\n");
+        if(SO_USERS_NUM < 20){
+            for (b = 0; b < SO_USERS_NUM; b++){
+                printf("P.UTENTE [%d] ha bilancio di: %d\n", shmArrayUsersPidPtr[b].userPid, shmArrayUsersPidPtr[b].bilancio);
+            }
+        }else{
+            if(pidmin.bilancio <= 2){
+                    pidmin = fantoccio;
+                }
+            for (b = 0; b < SO_USERS_NUM; b++){
+                if(shmArrayUsersPidPtr[b].bilancio > max){
+                    pidmax = shmArrayUsersPidPtr[b].userPid;
+                    max = shmArrayUsersPidPtr[b].bilancio;                    
+                }
+                
+                if(shmArrayUsersPidPtr[b].bilancio <= pidmin.bilancio && shmArrayUsersPidPtr[b].stato != USER_KO){ /*se metto > 2 restituisce altro*/
+                    pidmin = shmArrayUsersPidPtr[b];
+                }
+            }
+            printf("P.UTENTE MAX [%d] ha bilancio di: %d\n", pidmax, max);
+            printf("P.UTENTE MIN [%d] ha bilancio di: %d\n", pidmin.userPid, pidmin.bilancio);
+        }
+        if (SO_NODES_NUM < 20){
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                }
+
+                printf("P.NODO [%d] budget: %d\n", childNodePidArray[b], childNodePidArray[b + SO_NODES_NUM]);
+
+                if ( c < *shmIndiceBloccoPtr){
+                    c++;
+                }
+            }
+        }else{
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if(childNodePidArray[b] == shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].receiver){
+                    childNodePidArray[b + SO_NODES_NUM] += shmLibroMastroPtr[c * SO_BLOCK_SIZE + SO_BLOCK_SIZE - 1].quantita;
+                }
+            }
+            for(b = 0; b < SO_NODES_NUM; b++){
+                if (childNodePidArray[b + SO_NODES_NUM] > nodeMax){
+                    nodeMax = childNodePidArray[b + SO_NODES_NUM];
+                    y = b;
+                }
+                if (childNodePidArray[b + SO_NODES_NUM] < nodeMax){
+                    nodeMin = childNodePidArray[b + SO_NODES_NUM];
+                    j = b;
+                }
+            }
+            if ( c < *shmIndiceBloccoPtr){
+                    c++;
+            }            
+            printf("P.NODO MAX [%d] ha bilancio di: %d\n", childNodePidArray[y], nodeMax);
+            printf("P.NODO MIN [%d] ha bilancio di: %d\n", childNodePidArray[j], nodeMin);
+        }
+        printf("\n");
+#endif
+        /*controllo quanti figli sono morti fino ad ora poi proseguo*/
         while ((childPid = waitpid(-1, &status, WNOHANG)) != 0)
         {
             TEST_ERROR;
@@ -692,54 +809,44 @@ int main()
                 contatoreUtentiVivi--;
             }
         }
+        /*
+#if(ENABLE_TEST)
         printf("--------------------------CONTATORE UTENTI VIVI:%d-------------------------------\n", contatoreUtentiVivi);
+#endif*/
         /*STAMPO STATO DEL REGISTRO*/
         /*inserire condizion utentiInVita == 0 + alarm(SO_SIM_SEC) da gestire con un handler*/
         if (*(shmIndiceBloccoPtr) == SO_REGISTRY_SIZE || contatoreUtentiVivi <= 1)
         {
             /*STAMPO CONDIZIONI DI USCITA*/
+
             printf("valore shmIndiceBlocco %d\n", *(shmIndiceBloccoPtr));
             /*stampo stato libro mastro dopo l'esecuzione*/
             for (b = 0; b < *(shmIndiceBloccoPtr); b++)
             {
+                printf("|");
                 for (c = 0; c < SO_BLOCK_SIZE; c++)
                 {
-                    printf("|%03d|", shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);
+                    printf("%03d|",shmLibroMastroPtr[b * SO_BLOCK_SIZE + c].quantita);
                 }
                 printf("\n");
             }
+
             master = 0;
-<<<<<<< HEAD
-            /*ho commentato*/
-          /*  if (contatoreUtentiVivi <= 1)
-=======
-           /* if (contatoreUtentiVivi <= 1 || *(shmIndiceBloccoPtr) == SO_REGISTRY_SIZE )
->>>>>>> a79c593f6a5f87ea489af866bd1f5223a69021eb
-            {*/
-                for (i = 0; i < SO_NODES_NUM; i++)
-                {
-                    kill(childNodePidArray[i], SIGUSR1);
-                    TEST_ERROR;
-                }
-<<<<<<< HEAD
-           /* }*/
+
+            for (i = 0; i < SO_NODES_NUM; i++)
+            {
+                kill(childNodePidArray[i], SIGUSR1);
+                TEST_ERROR;
+            }
+
             for (i = 0; i < SO_USERS_NUM; i++)
             {
                 if (shmArrayUsersPidPtr[i].stato != USER_KO)
-=======
-         /*  }*/
-         /*Ho tolto il controllo sull'ultimo figlio morto*/
-           
-                for (i = 0; i < SO_USERS_NUM; i++)
->>>>>>> a79c593f6a5f87ea489af866bd1f5223a69021eb
                 {
-                    if (shmArrayUsersPidPtr[i].stato != USER_KO)
-                    {
-                        kill(shmArrayUsersPidPtr[i].userPid, SIGUSR1);
-                        TEST_ERROR;
-                    }
+                    kill(shmArrayUsersPidPtr[i].userPid, SIGUSR1);
+                    TEST_ERROR;
                 }
-            
+            }
         }
     }
     /*sleep(20);*/
@@ -882,24 +989,24 @@ Alcune assunzioni:
 1. La memoria condivisa esiste ed e' POPOLATA
 2. max rappresenta il valore di NUM_USERS che al momento della invocazione deve avere un valore valido.
 */
-int getRandomUser(int max, int myPid, utente *shmArrayUsersPidPtr)
+int getRandomUser(int max, long int random_seed, utente *shmArrayUsersPidPtr)
 {
     int userPidId;
-    srand(myPid);
+    srand(random_seed);
 
     do
     {
-        printf("6.Sto scegliendo a chi inviare la transazione%d\n", getpid());
+        /*printf("6.Sto scegliendo a chi inviare la transazione%d\n", getpid());*/
         userPidId = rand() % max;
-    } while (shmArrayUsersPidPtr[userPidId].userPid == myPid && shmArrayUsersPidPtr[userPidId].stato != USER_KO);
-    printf("8.Ho scelto a chi inviare la transazione%d\n", getpid());
+    } while (shmArrayUsersPidPtr[userPidId].userPid == getpid() && shmArrayUsersPidPtr[userPidId].stato != USER_KO);
+    /*printf("8.Ho scelto a chi inviare la transazione%d\n", getpid());*/
     return shmArrayUsersPidPtr[userPidId].userPid;
 }
 
-int calcoloDenaroInvio(int budget)
+int calcoloDenaroInvio(int budget, long int random_seed)
 {
     int res = 0;
-    srand(getpid());
+    srand(random_seed);
     /*suppongo che la transazione minima abbia quantita == 1 e reward == 1*/
     do
     {
@@ -945,8 +1052,10 @@ void signalHandler(int sigNum)
     switch (sigNum)
     {
     case SIGUSR1:
+/*#if(ENABLE_TEST)*/
         printf("SONO HANDLER DEL NODO!\n");
-        printf("----------%d di transazioni rimasti no gestite nella TP nodo -> %d----------\n", SO_TP_SIZE - semctl(semSetMsgQueueId, j, GETVAL), getpid());
+        printf("%d di transazioni rimasti no gestite nella TP\n", SO_TP_SIZE - semctl(semSetMsgQueueId, j, GETVAL));
+/*#endif*/
         /*eseguo detach shared memory nel nodo -> da implementare nella suddivisione in moduli*/
         shmdt(shmLibroMastroPtr);
         shmdt(shmIndiceBloccoPtr);
@@ -955,9 +1064,53 @@ void signalHandler(int sigNum)
         exit(EXIT_SUCCESS);
         break;
     case SIGUSR2:
-        /*transazione t2;
-        creaTransazione(... + &t2); -- da IMPLEMENTARE evitando sovrascrivere la transazione in esecuzione*/
+        /* IPOTIZZATO INVIO CON SEGNALE
+                    srand(getpid());
+                    nodoScelto = rand() % SO_NODES_NUM;
+                    
+                    sops.sem_flg = IPC_NOWAIT;
+                    sops.sem_num = nodoScelto;
+                    sops.sem_op = -1;
+                    semop(semSetMsgQueueId, &sops, 1);
+
+                    if (errno != EAGAIN)
+                    {
+                        transazioneInvio.sender = getpid();
+                        transazioneInvio.receiver = getRandomUser(SO_USERS_NUM, getpid(), shmArrayUsersPidPtr);
+                        
+                        clock_gettime(CLOCK_BOOTTIME, &timestampTransazione);
+                        
+                        transazioneInvio.timestamp = timestampTransazione;
+                        quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
+                        
+#if(ENABLE_TEST)
+                        printf("[%d] Invio %d\n", getpid(), quantita);
+#endif
+                        reward = (quantita * SO_REWARD) / 100;
+                        if (reward == 0)
+                        {
+                            reward = 1;
+                        }
+                        transazioneInvio.reward = reward;
+                        transazioneInvio.quantita = quantita - reward;
+#if(ENABLE_TEST)
+                        printf("SIGUSR2[%d] INVIO %d SOLDI A %d\n", getpid(), transazioneInvio.quantita, transazioneInvio.receiver);
+#endif
+                        
+                        messaggio.mtype = getpid();
+                        messaggio.transazione = transazioneInvio;
+                        msgsnd(shmArrayNodeMsgQueuePtr[nodoScelto], &messaggio, sizeof(transazione), 0); 
+                        TEST_ERROR;
+                        soRetry = SO_RETRY;
+                        
+                        attesaNonAttiva(SO_MIN_TRANS_GEN_NSEC, SO_MAX_TRANS_GEN_NSEC);
+
+                        shmArrayUsersPidPtr[i].bilancio = calcoloBilancio();
+                    }*/
+                        
+#if(ENABLE_TEST)
         printf("SONO HANDLER DELL'UTENTE!\n");
+#endif
         break;
     default:
         break;
@@ -973,13 +1126,63 @@ void userTermPremat(int sigNum)
     printf("Processo utente terminato!\n");
     contatoreUtentiVivi--;
 }
+
+void calcoloBilancio(int utente){
+    int u;
+    /*SO_BUDGET_INIT -= quantita;*/
+    /*while(ultimoBloccoControllato < *(shmIndiceBloccoPtr)){
+        for (u = 0; u < SO_BLOCK_SIZE -1; u++){
+        if (getpid() == shmLibroMastroPtr[ultimoBloccoControllato + u * *(shmIndiceBloccoPtr)].receiver ){
+            SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato + u * *(shmIndiceBloccoPtr)].quantita;
+        }
+    
+#if(ENABLE_TEST)
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
+#endif
+        }
+        ultimoBloccoControllato++;
+    }*/
+    for (ultimoBloccoControllato; ultimoBloccoControllato < *(shmIndiceBloccoPtr); ultimoBloccoControllato++){
+        for(u = 0; u < SO_BLOCK_SIZE; u++){
+            if(getpid() == shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].receiver){
+                shmArrayUsersPidPtr[utente].bilancio += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
+            }
+/*#if(ENABLE_TEST)
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
+#endif*/
+        }
+    }
+}
+
+int attesaRicezione(){
+    int u;
+    /*while(ultimoBloccoControllato < *(shmIndiceBloccoPtr)){
+        if (getpid() == shmLibroMastroPtr[ultimoBloccoControllato].receiver ){
+            SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato].quantita;
+#if(ENABLE_TEST)
+            printf("\nTROVATO, pid %d per BILANCIO di= %d\n", shmLibroMastroPtr[ultimoBloccoControllato].receiver, SO_BUDGET_INIT);
+#endif
+        }
+        ultimoBloccoControllato++;
+    }*/
+    for (ultimoBloccoControllato; ultimoBloccoControllato < *(shmIndiceBloccoPtr); ultimoBloccoControllato++){
+        for(u = 0; u < SO_BLOCK_SIZE - 1; u++){
+            if(getpid() == shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].receiver){
+                SO_BUDGET_INIT += shmLibroMastroPtr[ultimoBloccoControllato * SO_BLOCK_SIZE + u].quantita;
+            }
+        }
+    }
+    return SO_BUDGET_INIT;
+}
 /*TODO
 1.modificare la funzione di attesa non attiva da usare sia per i nodi che per gli utenti - V
-2.funzione che calcola il budget dell'utente prima di inviare alcuna transazione - X
-3.Il master deve stampare ogni secondo il bilancio di tutti i nodi presenti sul REGSTRO - X
+2.funzione che calcola il budget dell'utente prima di inviare alcuna transazione - V
+3.Il master deve stampare ogni secondo il bilancio di tutti i nodi presenti sul REGSTRO - V
+-si potrebbe aggiungere un campo alla struct dove aggiorniamo il budget corrente
 4.Mascherare i segnali prima e smascherarli subito dopo dell'attesa - V
 5.Aggiungere tempi di attesa - V
 6.Creare transazione di reward del nodo - V
-7.Aggiornare stato utente nel rispettivo array quando muore
-8.Bisogna tenere conto degli utenti vivi
+7.Aggiornare stato utente nel rispettivo array quando muore - V
+8.Bisogna tenere conto degli utenti vivi - V
+9.Impostare segnale invio transazione spontanea - X
 */
