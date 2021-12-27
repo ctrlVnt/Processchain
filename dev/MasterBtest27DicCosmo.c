@@ -28,7 +28,7 @@
                 strerror(errno));                  \
     }
 
-#define ENABLE_TEST 0
+#define ENABLE_TEST 1
 
 typedef struct transazione_ds
 {                              /*inviata dal processo utente a uno dei processi nodo che la gestisce*/
@@ -155,6 +155,9 @@ int contatoreUtentiVivi;
 int ultimoBloccoControllato = 0;
 /*VARIABILE PER TEST HANDLER*/
 int numerOrdineNodo;
+
+        /*introduco variabile secondi di sleep prima di riavviare gli utenti, non posso fare una sleep se no mi dorme il master*/
+        int dormivegliaUtenti = 0;
 
 /*Inizializza le variabili globali da un file di input TXT. */
 int read_all_parameters();
@@ -692,6 +695,9 @@ int main()
         }
         printf("\n");
 #endif
+        /*introduco variabile contatore morti*/
+        int cantaMorti = 0;
+        
 
         while ((childPid = waitpid(-1, &status, WNOHANG)) != 0)
         {
@@ -707,8 +713,37 @@ int main()
                     printf("%d terminato con status %d\n", childPid, WEXITSTATUS(status));
                 }
                 contatoreUtentiVivi--;
+                /*incremento contatore morti*/
+                cantaMorti++;
             }
         }
+
+        if(dormivegliaUtenti == 0){
+            /*introduco una specie di """algoritmo"""*/
+            if(cantaMorti >= SO_USERS_NUM/SO_NODES_NUM){
+                for(int a = 0;a < SO_USERS_NUM; a++){
+                    if (shmArrayUsersPidPtr[a].stato != USER_KO)
+                    {
+                        kill(shmArrayUsersPidPtr[a].userPid, SIGSTOP);
+                        TEST_ERROR;
+                    }
+                }
+                dormivegliaUtenti = 3;
+            }
+            cantaMorti = 0;
+        }else{
+            dormivegliaUtenti--;
+            if(dormivegliaUtenti == 0){
+               for(int a = 0;a < SO_USERS_NUM; a++){
+                    if (shmArrayUsersPidPtr[a].stato != USER_KO)
+                    {
+                        kill(shmArrayUsersPidPtr[a].userPid, SIGCONT);
+                        TEST_ERROR;
+                    }
+                } 
+            }
+        }
+            
         /*
 #if(ENABLE_TEST)
         printf("--------------------------CONTATORE UTENTI VIVI:%d-------------------------------\n", contatoreUtentiVivi);
@@ -1093,11 +1128,11 @@ void sendTransaction(){
 
                     if (errno == EAGAIN)
                     {
-#if(ENABLE_TEST == 0)        /*transaction pool piena*/
+#if(ENABLE_TEST == 1)        /*transaction pool piena*/
                         printf("2. soRetry: %d pid: %d -> SEMAFORO OCCUPATO\n", soRetry, getpid());
 #endif
                         soRetry--;
-                        sleep(50);
+                        sleep(5);
                     }
                     else
                     {
@@ -1153,11 +1188,11 @@ void sendTransaction(){
                 }
                 else
                 {
-#if(ENABLE_TEST==0)
+#if(ENABLE_TEST==1)
                 printf("2.5. soRetry: %d pid: %d -> BUDGET INSUFFICIENTE DI: %d\n", soRetry, getpid(), shmArrayUsersPidPtr[i].bilancio);
 #endif
                     soRetry--;
-                    sleep(50);
+                    sleep(5);
                 }
 
                 shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
@@ -1169,4 +1204,6 @@ int sleepUtente(){
 	
 }
               
-
+/*MODIFICHE
+  1. dopo il wait a riga 711 se muoiono più di tot figli, il master sospende l'esecuzione dei restanti per tot secondi
+    con un for kill(pid,sigstop) poi li fa ripartire con un for kill(pid, sigcont)*/
