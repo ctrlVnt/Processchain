@@ -306,7 +306,6 @@ int main(int argc, char const *argv[])
     printf("\tidSharedMemoryIndiceLibroMastro: %d\n", idSharedMemoryIndiceLibroMastro);
     /*ID OK -- effettuo l'attach*/
     puntatoreSharedMemoryIndiceLibroMastro = (int *)shmat(idSharedMemoryIndiceLibroMastro, NULL, 0);
-    printf("ATACHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH\n");
     if (*puntatoreSharedMemoryIndiceLibroMastro == -1)
     {
         perror("shmat");
@@ -315,8 +314,7 @@ int main(int argc, char const *argv[])
     else{
         printf("\tPuntatore esiste!");
     }
-    printf("\tValore indiceLibroMastro: %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
-    printf("DOPO ATACHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH\n");
+    printf("\tValore indiceLibroMastro: %d\n", *(puntatoreSharedMemoryIndiceLibroMastro));
 
     /*imposto l'handler*/
     sigactionSigusr1Nuova.sa_flags = 0;
@@ -343,13 +341,12 @@ int main(int argc, char const *argv[])
             clock_gettime(CLOCK_BOOTTIME, &transazioneInvio.timestamp);
             messaggio.mtype = getpid();
             messaggio.transazione = transazioneInvio;
-            msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid)].mqId, &messaggio, sizeof(messaggio.transazione), IPC_NOWAIT);
+            msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid)].mqId, &messaggio, sizeof(messaggio.transazione), 0);
             if(errno == EAGAIN && msgsndRisposta == -1)
             {
                 printf("Coda scelta occupata...\n");
                 soRetry--;
                 sleep(2);
-                continue;
             }
             else if(msgsndRisposta != -1){
                 printf("[%d] messaggio inviato con risposta %d\n", getpid(), msgsndRisposta);
@@ -359,7 +356,9 @@ int main(int argc, char const *argv[])
         }
         else
         {
+            printf("FACCIO SO RETRY\n");
             soRetry--;
+            sleep(2);
         }
         if(soRetry <= 0)
         {
@@ -441,7 +440,7 @@ int getBudgetUtente(int *indiceLibroMastroRiservato)
 {
     int ultimoIndice;
     int c;
-    ultimoIndice = puntatoreSharedMemoryIndiceLibroMastro[0];
+    ultimoIndice = *(puntatoreSharedMemoryIndiceLibroMastro);
 
     for(*indiceLibroMastroRiservato; *indiceLibroMastroRiservato < ultimoIndice; *(indiceLibroMastroRiservato)++)
     {

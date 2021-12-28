@@ -90,10 +90,10 @@ int idSharedMemoryTuttiNodi;
 nodo *puntatoreSharedMemoryTuttiNodi;
 /*
 Il mio numero d'ordine
-Si assume che alla cella numeroOrdineMiaCodaMessaggi-esima nella SM puntato da 
+Si assume che alla cella numeroOrdine-esima nella SM puntato da 
  *puntatoreSharedMemoryTuttiNodi posso effettivamente recuperare l'ID della mia MQ.
 */
-int numeroOrdineMiaCodaMessaggi;
+int numeroOrdine;
 /*Id della mia coda di messaggi*/
 int idMiaMiaCodaMessaggi;
 /*ID della SM dove si trova il libro mastro*/
@@ -201,15 +201,15 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*Recupero il mio numero d'ordine*/
-    numeroOrdineMiaCodaMessaggi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[4], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
-    if(numeroOrdineMiaCodaMessaggi == 0 && errno == EINVAL)
+    numeroOrdine = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[4], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
+    if(numeroOrdine == 0 && errno == EINVAL)
     {
         perror("Errore di conversione");
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    printf("numeroOrdineMiaCodaMessaggi: %d\n", numeroOrdineMiaCodaMessaggi);
-    printf("ID mia coda di messaggi - %d\n", puntatoreSharedMemoryTuttiNodi[numeroOrdineMiaCodaMessaggi + 1].mqId);
+    printf("numeroOrdine: %d\n", numeroOrdine);
+    printf("ID mia coda di messaggi - %d\n", puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId);
 
     idSharedMemoryLibroMastro = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[5], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(idSharedMemoryLibroMastro == 0 && errno == EINVAL)

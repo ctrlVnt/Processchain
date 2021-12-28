@@ -293,8 +293,8 @@ int main(int argc, char const *argv[])
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
-    SO_BLOCK_SIZE = 5;
-    SO_TP_SIZE = 10;
+    SO_BLOCK_SIZE = 3;
+    SO_TP_SIZE = 5;
     idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if (idSharedMemoryLibroMastro == -1)
     {
@@ -757,8 +757,8 @@ int main(int argc, char const *argv[])
         sleep(1);
         if (puntatoreSharedMemoryIndiceLibroMastro[0] == SO_REGISTRY_SIZE)
         {
-            motivoTerminazione = REGISTRY_FULL;
             raise(SIGALRM);
+            motivoTerminazione = REGISTRY_FULL;
             stampaTerminale(1);
             master = MASTER_STOP;
             continue;
@@ -767,26 +767,33 @@ int main(int argc, char const *argv[])
         stampaTerminale(0);
         /**/
         /*verifico se qualcuno ha cambiato lo stato senza attendere*/
+        int a = 0;
         if ((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != -1)
         {
             if (WIFEXITED(childStatus))
             {
                 /*se lo status e' EXIT_PREMAT*/
-                if (WEXITSTATUS(childStatus) == EXIT_PREMAT)
+                /*if (WEXITSTATUS(childStatus) == EXIT_PREMAT)*/
+               /* {*/
+                /*faccio notrare a tutti che il numero degli utenti si e' diminuito*/
+                for(a = 1; a <= SO_USERS_NUM; a++)
                 {
-                    /*faccio notrare a tutti che il numero degli utenti si e' diminuito*/
-                    puntatoreSharedMemoryTuttiUtenti[0].userPid--;
-                    /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
-                    if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= -1)
+                    if(puntatoreSharedMemoryTuttiUtenti[a].userPid == childPidWait)
                     {
-                        /*COME SE ALLARME SCATASSE*/
-                        motivoTerminazione = NO_UTENTI_VIVI;
-                        stampaTerminale(1);
-                        raise(SIGALRM);
-                        master = MASTER_STOP;
-                        continue;
+                        puntatoreSharedMemoryTuttiUtenti[a].stato = USER_KO;
                     }
                 }
+                puntatoreSharedMemoryTuttiUtenti[0].userPid--;
+                /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
+                if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= 1)
+                {
+                    /*COME SE ALLARME SCATASSE*/
+                    // stampaTerminale(1);
+                    raise(SIGALRM);
+                    master = MASTER_STOP;
+                    motivoTerminazione = NO_UTENTI_VIVI;
+                }
+               /* }*/
             }
         }
     }
@@ -1036,7 +1043,7 @@ void alarmHandler(int sigNum)
     }
 
     cont = 0;
-    for (cont; cont < numeroNodi; cont++)
+    for (cont; cont < puntatoreSharedMemoryTuttiNodi[0].nodoPid; cont++)
     {
         kill(puntatoreSharedMemoryTuttiNodi[cont + 1].nodoPid, SIGUSR1);
     }
@@ -1091,9 +1098,9 @@ void stampaTerminale(int flag)
     }
     printf("NODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
     contatoreStampa = 0;
-    for (contatoreStampa; contatoreStampa < SO_NODES_NUM; contatoreStampa++)
+    for (contatoreStampa; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
     {
         printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].nodoPid, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].transazioniPendenti);
     }
-    printf("\nNumero di blocchi: %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
+    printf("\nNumero di blocchi: %d\n", *(puntatoreSharedMemoryIndiceLibroMastro));
 }

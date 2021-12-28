@@ -23,7 +23,7 @@ I parametri della simulazione(comuni a tutti i nodi):
 1.SO_MIN_TRANS_PROC_NSEC
 2.2 SO_MAX_TRANS_PROC_NSEC
 3.ID SM dove salvo gli ID delle code di messaggi -- Magari introdurre un campo HEADER a indicare il numero di code presenti
-4.1 Il mio numero d'ordine
+4.1 Il mio numero d'ordine(quando si vuole recupeprare il valore che effettivamente appartiene a me - faccio numeroORDINE + 1)
 5.ID SM dove si trova libro mastro
 6.ID SM dove si trova l'indice del libro mastro
 7.ID semaforo del libro mastro
@@ -91,10 +91,10 @@ int idSharedMemoryTuttiNodi;
 nodo *puntatoreSharedMemoryTuttiNodi;
 /*
 Il mio numero d'ordine
-Si assume che alla cella numeroOrdineMiaCodaMessaggi-esima nella SM puntato da 
+Si assume che alla cella numeroOrdine-esima nella SM puntato da 
  *puntatoreSharedMemoryTuttiNodi posso effettivamente recuperare l'ID della mia MQ.
 */
-int numeroOrdineMiaCodaMessaggi;
+int numeroOrdine;
 /*Id della mia coda di messaggi*/
 int idMiaMiaCodaMessaggi;
 /*ID della SM dove si trova il libro mastro*/
@@ -216,15 +216,15 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*Recupero il mio numero d'ordine*/
-    numeroOrdineMiaCodaMessaggi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[4], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
-    if (numeroOrdineMiaCodaMessaggi == 0 && errno == EINVAL)
+    numeroOrdine = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[4], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (numeroOrdine == 0 && errno == EINVAL)
     {
         perror("Errore di conversione");
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    printf("numeroOrdineMiaCodaMessaggi: %d\n", numeroOrdineMiaCodaMessaggi);
-    printf("ID mia coda di messaggi - %d\n", puntatoreSharedMemoryTuttiNodi[numeroOrdineMiaCodaMessaggi + 1].mqId);
+    printf("numeroOrdine: %d\n", numeroOrdine);
+    printf("ID mia coda di messaggi - %d\n", puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId);
 
     idSharedMemoryLibroMastro = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[5], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
     if (idSharedMemoryLibroMastro == 0 && errno == EINVAL)
@@ -322,19 +322,15 @@ int main(int argc, char const *argv[])
     {
         while (tpPiena < SO_TP_SIZE && node == NODO_CONTINUE)
         {
-            msgrcvRisposta = msgrcv(puntatoreSharedMemoryTuttiNodi[numeroOrdineMiaCodaMessaggi + 1].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione), 0, 0);
+            msgrcvRisposta = msgrcv(puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione), 0, 0);
             /*TEST*/
-            printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdineMiaCodaMessaggi + 1].mqId, msgrcvRisposta);
+            printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, msgrcvRisposta);
             transactionPool[(indiceSuccessivoTransactionPool++)] = messaggioRicevuto.transazione;
             if (indiceSuccessivoTransactionPool == SO_TP_SIZE)
             {
                 indiceSuccessivoTransactionPool = 0;
             }
             tpPiena++;
-            if(node == NODO_STOP)
-            {
-                break;
-            }
         }
         if(node == NODO_STOP)
         {
@@ -345,7 +341,7 @@ int main(int argc, char const *argv[])
         for (i = 0; i < (SO_BLOCK_SIZE - 1); i++)
         {
             blocco[i] = transactionPool[(indiceSuccessivoBlocco++)];
-            transazioneReward.quantita = blocco[i].quantita;
+            transazioneReward.quantita = blocco[i].reward;
             if (indiceSuccessivoBlocco == SO_TP_SIZE)
             {
                 indiceSuccessivoBlocco = 0;
@@ -359,29 +355,32 @@ int main(int argc, char const *argv[])
         operazioniSemaforo.sem_num = 0;
         operazioniSemaforo.sem_op = -1;
         semopRisposta = semop(idSemaforoAccessoIndiceLibroMastro, &operazioniSemaforo, 1);
+        /*possibile codice superfluo perchè la semop non è mai bloccante*/
         if (semopRisposta == -1)
         {
             perror("Tentativo di riservare l'indice del libro mastro fallito\n");
             node = NODO_STOP;
             break;
         }
-        indiceLibroMastroRiservato = puntatoreSharedMemoryIndiceLibroMastro[0];
-        if (indiceLibroMastroRiservato >= 100)
+        indiceLibroMastroRiservato = *(puntatoreSharedMemoryIndiceLibroMastro);
+        if (indiceLibroMastroRiservato >= 100) /*11 parametro settato*/
         {
             node = NODO_STOP;
             break;
         }
-        puntatoreSharedMemoryIndiceLibroMastro[0]++;
+        *(puntatoreSharedMemoryIndiceLibroMastro) += 1;
         /*release dell'indice libro mastro*/
         operazioniSemaforo.sem_flg = 0;
         operazioniSemaforo.sem_num = 0;
         operazioniSemaforo.sem_op = 1;
         semopRisposta = semop(idSemaforoAccessoIndiceLibroMastro, &operazioniSemaforo, 1);
+        /*possibile codice superfluo perchè la semop non è mai bloccante*/
         if (semopRisposta == -1)
         {
             perror("Tentativo di rilasciare l'indice del libro mastro fallito\n");
             node = NODO_STOP;
         }
+        attesaNonAttiva(soMinTransProcNsec, soMaxTransProcNsec);
         /*ho riservato l'indice - posso scrivere sul libro mastro*/
         for (i = 0; i < SO_BLOCK_SIZE; i++)
         {
@@ -389,7 +388,17 @@ int main(int argc, char const *argv[])
         }
         /*TEST*/
         printf("[%d] ho finito di scrivere sul libro mastro\n", getpid());
-        attesaNonAttiva(soMinTransProcNsec, soMaxTransProcNsec);
+        /*rilascio il semaforo*/
+        operazioniSemaforo.sem_flg = 0;
+        operazioniSemaforo.sem_num = numeroOrdine;
+        operazioniSemaforo.sem_op = SO_BLOCK_SIZE - 1;
+        semopRisposta = semop(idSemaforoAccessoMiaCodaMessaggi, &operazioniSemaforo, 1);
+        if (semopRisposta == -1)
+        {
+            perror("Tentativo di rilasciare semaforo mia coda di messaggi\n");
+            node = NODO_STOP;
+        }
+        /**/
         tpPiena -= SO_BLOCK_SIZE - 1;
         /*TEST*/
         printf("Nuovo ciclo\n");
@@ -476,16 +485,17 @@ void attesaNonAttiva(long nsecMin, long nsecMax)
     /*TODO - MASCERARE IL SEGNALE SIGCONT*/
 }
 
+/*visto che lavoriamo con le SM, provare a delegare questa operazione al libro mastro*/
 void aggiornaBilancioNodo(int indiceLibroMastroRiservato)
 {
     int ultimoIndice;
-    ultimoIndice = puntatoreSharedMemoryIndiceLibroMastro[0];
+    ultimoIndice = *(puntatoreSharedMemoryIndiceLibroMastro);
     
     for(indiceLibroMastroRiservato; indiceLibroMastroRiservato < ultimoIndice; indiceLibroMastroRiservato++)
     {
         if(puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE + (SO_BLOCK_SIZE - 1)].receiver == getpid())
         {
-            puntatoreSharedMemoryTuttiNodi[numeroOrdineMiaCodaMessaggi + 1].budget += puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE + (SO_BLOCK_SIZE - 1)].quantita;
+            puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].budget += puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE + (SO_BLOCK_SIZE - 1)].quantita;
         }
     }
     /*TEST*/
