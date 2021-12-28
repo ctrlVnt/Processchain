@@ -28,7 +28,7 @@
                 strerror(errno));                  \
     }
 
-#define ENABLE_TEST 1
+#define ENABLE_TEST 0
 
 typedef struct transazione_ds
 {                              /*inviata dal processo utente a uno dei processi nodo che la gestisce*/
@@ -416,7 +416,7 @@ int main()
                 }
 #endif
                 attesaNonAttiva(SO_MIN_TRANS_PROC_NSEC, SO_MAX_TRANS_PROC_NSEC);
-                /*send al libr mastro e liberare risorse da semaforo*/
+                /*send al libr mastro e liberare risorse da semaforo -> reserve semaforo*/
                 sops.sem_flg = 0;
                 sops.sem_num = 0;
                 sops.sem_op = -1;
@@ -445,14 +445,14 @@ int main()
                 }
 
 /*Controllo di aver riempito il libro mastro in maniera corretta*/
-#if (ENABLE_TEST)
+/*#if (ENABLE_TEST)*/
                 /*sleep(1);*/
                 for (a = 0; a < SO_BLOCK_SIZE; a++)
                 {
                     printf("LIBRO MASTRO in pos: %d con quantita: %d\n", a, shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + a].quantita);
                     // printf("LIBRO MASTRO in pos: %d con quantita: %d\n", a, shmLibroMastroPtr[*(shmIndiceBloccoPtr)*SO_BLOCK_SIZE + a].quantita);
                 }
-#endif
+/*#endif*/
 
                 /*aggiornamento dell'indice*/
                 *(shmIndiceBloccoPtr) += 1;
@@ -926,10 +926,10 @@ void attesaNonAttiva(long nsecMin, long nsecMax)
     long attesa = rand() % diff + nsecMin;
     int sec = attesa / ntos;
     long nsec = attesa - (sec * ntos);
-#if (ENABLE_TEST)
+/*#if (ENABLE_TEST)*/
     printf("SEC: %d\n", sec);
     printf("NSEC: %ld\n", nsec);
-#endif
+/*#endif*/
     struct timespec tempoDiAttesa;
     tempoDiAttesa.tv_sec = sec;
     tempoDiAttesa.tv_nsec = nsec;
