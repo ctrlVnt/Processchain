@@ -170,6 +170,9 @@ void signalHandler(int);
 int calcoloBilancio();
 /*Invio transazione*/
 void sendTransaction();
+/*algoritmo calcolo sleep*/
+int sleepUtente();
+int dormo;
 
 int scelgoNodo();
 
@@ -190,7 +193,12 @@ int main()
         fprintf(stderr, "Parsing failed!");
     }
     contatoreUtentiVivi = SO_USERS_NUM; /*salvo in locale il numero di utenti vivi*/
-
+	
+	/*valore di sleep*/
+	dormo = sleepUtente();
+	printf("Valore sleep: %d\n", dormo);
+	//sleep(5);
+	
     /*inizializzo array usando calloc con valore letto da file.txt causa std=c89 che non
       permette di dichiarare un array con lunghezza, cioè -> array[lunghezza]*/
 #if (ENABLE_TEST)
@@ -226,7 +234,8 @@ int main()
     /*inizializzazione memoria condivisa array ID coda di messaggi*/
     shmIdNodo = shmget(IPC_PRIVATE, SO_NODES_NUM * sizeof(int), 0600 | IPC_CREAT);
     shmArrayNodeMsgQueuePtr = (int *)shmat(shmIdNodo, NULL, 0); /*eseguo attach per riempire l'array di ID di code di messaggi*/
-
+	
+	
 /*
 #if (ENABLE_TEST)
     printf("\nLa shared memory dell'array contenente gli ID delle message queue è: %d\n", shmIdNodo);
@@ -315,7 +324,7 @@ int main()
             sigemptyset(&maskSetForChild);                                 /*inizializzo empty set, maschera VUOTA*/
             sigaddset(&maskSetForChild, SIGINT);                           /* aggiungo SIGINT alla mashera*/
             sigaddset(&maskSetForChild, SIGSTOP);                          /*aggiungo SIGSTOP alla maschera*/
-            sigprocmask(SIG_BLOCK, &maskSetForChild, &maskSetForChildOld); /*blocco i seganli indicati sopra*/
+        //  sigprocmask(SIG_BLOCK, &maskSetForChild, &maskSetForChildOld); /*blocco i seganli indicati sopra*/
             act.sa_mask = maskSetForChild;                                 /*aggiungo la maschera all'act(struttura)*/
             act.sa_handler = signalHandler;
             act.sa_flags = 0;
@@ -332,7 +341,7 @@ int main()
             sops.sem_num = 0;
             sops.sem_op = 0;
             semop(semSyncStartId, &sops, 1);
-
+			printf("---------IO NODO MI SONO SVEGLIATO-----------\n");
             /*POSSO INIZIARE A LAVORARE*/
             /*Attachment di ogni nodo alla memoria condivisa di OGNI coda di messaggi*/
             shmArrayNodeMsgQueuePtr = (int *)shmat(shmIdNodo, NULL, SHM_RDONLY);
@@ -355,33 +364,54 @@ int main()
             transazioneReward.reward = 0;
             transazioneReward.quantita = 0;
             transazioneReward.receiver = getpid();
+            
+            /*introduzione nuovo algoritmo*/
+            int bloccoRiempibile = 0;
+            int nodoStop = 1;
+            
             while (nodo)
             {
                 /*quando il semaforo è verde si riempie la Tp*/
                 /*esplicitando la condizione di uscita il valore del semaforo viene beccato dal while*/
                 /*causa scheduler forse converrebbe aggiungere una condizione nel while es -> tpSize == SO_TP_SIZE
                   con tpSize++ ad ogni inserimento nella transaction pool*/
-                while (tpPiena < SO_TP_SIZE)
+                
+                  
+                while (tpPiena < SO_TP_SIZE && nodoStop)
                 {
                     /*printf("valore semaforo j :%d nodo: %d\n", semctl(semSetMsgQueueId, j, GETVAL), getpid());*/
-                    TEST_ERROR;
+
                     /*SOLUZIONE ALTERNATIVA: if con continue*/
                     /*riceve il messaggio nella propria coda di messaggi*/
-                    msgrcv(shmArrayNodeMsgQueuePtr[j], &myMsg, sizeof(transazione), 0, 0);
-/*#if (ENABLE_TEST)
+                  //  printf("------------PROVO A FARE LA RECEIVE-------------\n");
+                    int a = msgrcv(shmArrayNodeMsgQueuePtr[j], &myMsg, sizeof(transazione), 0, IPC_NOWAIT);
+                    //printf("---------------[%d] con coda %d con ID :%d -> leggo %d----------------\n", getpid(), j, shmArrayNodeMsgQueuePtr[j], a);
+                   
+                   if(errno != EAGAIN && a != -1){
+                   		tpPiena++;
+		                bloccoRiempibile++;
+		                /*printf("mtype: %ld\n", myMsg.mtype);*/
+
+		                transactionPool[indiceTpCellaLibera++] = myMsg.transazione;
+
+		                if (indiceTpCellaLibera == SO_TP_SIZE)
+		                {
+		                    indiceTpCellaLibera = 0;
+		                }
+                   }else{
+                   		 errno = 0;
+                   		 if(bloccoRiempibile == SO_BLOCK_SIZE -1){
+                   		      nodoStop = 0;
+                   		 }else{
+                   		 	  attesaNonAttiva(100000, 200000); 
+                   		 }
+                   }
+                  
+/*#if (ENABLE_TEST)	
                     controllo che nessuna transazione letta venga sovrascritta in qualche modo
                     printf("Valore quantita transazione appena letta: %d\n", myMsg.transazione.quantita);
 #endif*/
-                    TEST_ERROR;
-                    tpPiena++;
-                    /*printf("mtype: %ld\n", myMsg.mtype);*/
-
-                    transactionPool[indiceTpCellaLibera++] = myMsg.transazione;
-
-                    if (indiceTpCellaLibera == SO_TP_SIZE)
-                    {
-                        indiceTpCellaLibera = 0;
-                    }
+                    
                 }
 /*esegue la stampa*/
 #if (ENABLE_TEST)
@@ -487,6 +517,8 @@ int main()
                 semop(semSetMsgQueueId, &sops, 1);
                 TEST_ERROR;
                 tpPiena -= SO_BLOCK_SIZE - 1;
+                bloccoRiempibile = tpPiena;
+                nodoStop = 1;
 
                 printf("valore semaforo j :%d nodo: %d\n", semctl(semSetMsgQueueId, j, GETVAL), getpid());
 
@@ -504,7 +536,7 @@ int main()
         default:
             childNodePidArray[i] = childPid;
             childNodePidArray[SO_NODES_NUM + i] = 0;
-
+			
 #if (ENABLE_TEST)
             printf("Child NODE %d e' stato creato e memorizzato nella struttura\n", childNodePidArray[i]);
 #endif
@@ -541,9 +573,9 @@ int main()
             nodo = 0;
             /*maschero alcuni segnali*/
             sigemptyset(&maskSetForChild);                                 /*inizializzo empty set, maschera VUOTA*/
-            sigaddset(&maskSetForChild, SIGINT);                           /*aggiungo SIGINT alla mashera*/
+           	sigaddset(&maskSetForChild, SIGINT);                           /*aggiungo SIGINT alla mashera*/
             sigaddset(&maskSetForChild, SIGSTOP);                          /*aggiungo SIGSTOP alla maschera*/
-            sigprocmask(SIG_BLOCK, &maskSetForChild, &maskSetForChildOld); /*blocco i seganli indicati sopra*/
+           // sigprocmask(SIG_BLOCK, &maskSetForChild, &maskSetForChildOld); /*blocco i seganli indicati sopra*/
             act.sa_mask = maskSetForChild;                                 /*aggiungo la maschera all'act(struttura)*/
             act.sa_handler = signalHandler;
             act.sa_flags = 0;
@@ -586,6 +618,11 @@ int main()
             shmArrayUsersPidPtr[i].stato = USER_OK;
             shmArrayUsersPidPtr[i].userPid = childPid;
             shmArrayUsersPidPtr[i].bilancio = SO_BUDGET_INIT;
+            /*aspetto per la creazione*/
+            struct timespec tempo1;
+            tempo1.tv_sec = 0;
+            tempo1.tv_nsec = 250000;
+            nanosleep(&tempo1, NULL);
             break;
         }
     }
@@ -925,7 +962,7 @@ int calcoloDenaroInvio(int budget)
     /*suppongo che la transazione minima abbia quantita == 1 e reward == 1*/
     do
     {
-        res = (rand() % (budget))/5;
+        res = (rand() % (budget));
 
         if (res == 1)
         {
@@ -1075,7 +1112,8 @@ int scelgoNodo(){
 void sendTransaction(){
       shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
     if (shmArrayUsersPidPtr[i].bilancio >= 2)
-                {
+                {	
+                	
                     /*printf("Cerco di riservare il semaforo\n");*/
                     /*seleziono il nodo a cui inviare -> EVENTUALE FUNZIONE PER CREAZIONE TRANSAZIONE*/
                     
@@ -1092,11 +1130,11 @@ void sendTransaction(){
 
                     if (errno == EAGAIN)
                     {
-#if(ENABLE_TEST )        /*transaction pool piena*/
+#if(ENABLE_TEST == 1)        /*transaction pool piena*/
                         printf("2. soRetry: %d pid: %d -> SEMAFORO OCCUPATO\n", soRetry, getpid());
 #endif
                         soRetry--;
-                      //  sleep(20);
+                        sleep(dormo);
                     }
                     else
                     {
@@ -1110,7 +1148,7 @@ void sendTransaction(){
                         /*printf("Ho impostato il timestamp%d\n", getpid());*/
                         transazioneInvio.timestamp = timestampTransazione;
                         quantita = calcoloDenaroInvio(shmArrayUsersPidPtr[i].bilancio);
-                        /*printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);*/
+                        printf("7.%d scelto la quantità totale da inviare: %d\n", getpid(), quantita);
 #if(ENABLE_TEST)
                         printf("[%d] Invio %d\n", getpid(), quantita);
 #endif
@@ -1152,14 +1190,18 @@ void sendTransaction(){
                 }
                 else
                 {
-#if(ENABLE_TEST)
+#if(ENABLE_TEST==1)
                 printf("2.5. soRetry: %d pid: %d -> BUDGET INSUFFICIENTE DI: %d\n", soRetry, getpid(), shmArrayUsersPidPtr[i].bilancio);
 #endif
                     soRetry--;
-                   // sleep(20);
+                   sleep(dormo);
                 }
 
                 shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
+}
+
+int sleepUtente(){
+	return (SO_USERS_NUM /(SO_NODES_NUM*(SO_TP_SIZE-(SO_BLOCK_SIZE - 1))))*2;  /*FORSE più ragionevole*/
 }
               
 

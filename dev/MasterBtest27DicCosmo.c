@@ -170,6 +170,9 @@ void signalHandler(int);
 int calcoloBilancio();
 /*Invio transazione*/
 void sendTransaction();
+/*algoritmo calcolo sleep*/
+int sleepUtente();
+int dormo;
 
 int scelgoNodo();
 
@@ -190,7 +193,12 @@ int main()
         fprintf(stderr, "Parsing failed!");
     }
     contatoreUtentiVivi = SO_USERS_NUM; /*salvo in locale il numero di utenti vivi*/
-
+	
+	/*valore di sleep*/
+	dormo = sleepUtente();
+	printf("Valore sleep: %d\n", dormo);
+	//sleep(5);
+	
     /*inizializzo array usando calloc con valore letto da file.txt causa std=c89 che non
       permette di dichiarare un array con lunghezza, cioè -> array[lunghezza]*/
 #if (ENABLE_TEST)
@@ -226,7 +234,8 @@ int main()
     /*inizializzazione memoria condivisa array ID coda di messaggi*/
     shmIdNodo = shmget(IPC_PRIVATE, SO_NODES_NUM * sizeof(int), 0600 | IPC_CREAT);
     shmArrayNodeMsgQueuePtr = (int *)shmat(shmIdNodo, NULL, 0); /*eseguo attach per riempire l'array di ID di code di messaggi*/
-
+	
+	
 /*
 #if (ENABLE_TEST)
     printf("\nLa shared memory dell'array contenente gli ID delle message queue è: %d\n", shmIdNodo);
@@ -332,7 +341,7 @@ int main()
             sops.sem_num = 0;
             sops.sem_op = 0;
             semop(semSyncStartId, &sops, 1);
-
+			printf("---------IO NODO MI SONO SVEGLIATO-----------\n");
             /*POSSO INIZIARE A LAVORARE*/
             /*Attachment di ogni nodo alla memoria condivisa di OGNI coda di messaggi*/
             shmArrayNodeMsgQueuePtr = (int *)shmat(shmIdNodo, NULL, SHM_RDONLY);
@@ -367,8 +376,11 @@ int main()
                     TEST_ERROR;
                     /*SOLUZIONE ALTERNATIVA: if con continue*/
                     /*riceve il messaggio nella propria coda di messaggi*/
-                    msgrcv(shmArrayNodeMsgQueuePtr[j], &myMsg, sizeof(transazione), 0, 0);
-/*#if (ENABLE_TEST)
+                    printf("------------PROVO A FARE LA RECEIVE-------------\n");
+                    int a = msgrcv(shmArrayNodeMsgQueuePtr[j], &myMsg, sizeof(transazione), 0, 0);
+                    printf("---------------[%d] con coda %d con ID :%d -> leggo %d----------------\n", getpid(), j, shmArrayNodeMsgQueuePtr[j], a);
+                   
+/*#if (ENABLE_TEST)	
                     controllo che nessuna transazione letta venga sovrascritta in qualche modo
                     printf("Valore quantita transazione appena letta: %d\n", myMsg.transazione.quantita);
 #endif*/
@@ -504,7 +516,7 @@ int main()
         default:
             childNodePidArray[i] = childPid;
             childNodePidArray[SO_NODES_NUM + i] = 0;
-
+			
 #if (ENABLE_TEST)
             printf("Child NODE %d e' stato creato e memorizzato nella struttura\n", childNodePidArray[i]);
 #endif
@@ -520,10 +532,10 @@ int main()
     TEST_ERROR;
 
     /*sincronizzo i figli*/
-    sops.sem_num = 0;
+  /*  sops.sem_num = 0;
     sops.sem_flg = 0;
     sops.sem_op = SO_USERS_NUM + 1;
-    semop(semSyncStartId, &sops, 1);
+    semop(semSyncStartId, &sops, 1);*/
 
     /* creazione figli users con operazioni annesse */
     for (i = 0; i < SO_USERS_NUM; i++)
@@ -551,16 +563,16 @@ int main()
             /*  sigaction(SIGUSR1, &act, &actOld);*/
 
             /*avviso il PARENT*/
-            sops.sem_flg = 0;
+         /*   sops.sem_flg = 0;
             sops.sem_num = 0;
             sops.sem_op = -1;
-            semop(semSyncStartId, &sops, 1);
+            semop(semSyncStartId, &sops, 1);*/
 
             /*in attesa di zero*/
-            sops.sem_flg = 0;
+         /*   sops.sem_flg = 0;
             sops.sem_num = 0;
             sops.sem_op = 0;
-            semop(semSyncStartId, &sops, 1);
+            semop(semSyncStartId, &sops, 1);*/
 /* SOLO PER TEST*/
 /*#if (ENABLE_TEST)
             printf("sono il figio: %d, in posizione: %d\n", getpid(), i);
@@ -586,16 +598,21 @@ int main()
             shmArrayUsersPidPtr[i].stato = USER_OK;
             shmArrayUsersPidPtr[i].userPid = childPid;
             shmArrayUsersPidPtr[i].bilancio = SO_BUDGET_INIT;
+            /*aspetto per la creazione*/
+            struct timespec tempo1;
+            tempo1.tv_sec = 0;
+            tempo1.tv_nsec = 250000;
+            nanosleep(&tempo1, NULL);
             break;
         }
     }
 
     /*risveglio gli utenti*/
-    sops.sem_flg = 0;
+    /*sops.sem_flg = 0;
     sops.sem_num = 0;
     sops.sem_op = -1;
     semop(semSyncStartId, &sops, 1);
-    TEST_ERROR;
+    TEST_ERROR;*/
 
     /*DA QUI IN POI HO TUTTI GLI UTENTI E TUTTI I NODI ATTIVI*/
 
@@ -967,7 +984,7 @@ void signalHandler(int sigNum)
     switch (sigNum)
     {
     case SIGUSR1:
-#if(ENABLE_TEST == 0)
+#if(ENABLE_TEST == 1)
         printf("SONO HANDLER DEL NODO!\n");
         printf("%d di transazioni rimasti no gestite nella TP\n", SO_TP_SIZE - semctl(semSetMsgQueueId, j, GETVAL));
 #endif
@@ -1093,11 +1110,11 @@ void sendTransaction(){
 
                     if (errno == EAGAIN)
                     {
-#if(ENABLE_TEST == 0)        /*transaction pool piena*/
+#if(ENABLE_TEST == 1)        /*transaction pool piena*/
                         printf("2. soRetry: %d pid: %d -> SEMAFORO OCCUPATO\n", soRetry, getpid());
 #endif
                         soRetry--;
-                        sleep(50);
+                        sleep(dormo);
                     }
                     else
                     {
@@ -1153,20 +1170,18 @@ void sendTransaction(){
                 }
                 else
                 {
-#if(ENABLE_TEST==0)
+#if(ENABLE_TEST==1)
                 printf("2.5. soRetry: %d pid: %d -> BUDGET INSUFFICIENTE DI: %d\n", soRetry, getpid(), shmArrayUsersPidPtr[i].bilancio);
 #endif
                     soRetry--;
-                    sleep(50);
+                   sleep(dormo);
                 }
 
                 shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
 }
 
 int sleepUtente(){
-	(SO_USERS_NUM /(SO_NODES_NUM*(SO_TP_SIZE-(SO_BLOCK_SIZE - 1))))*3;  /*FORSE più ragionevole*/
-	(((SO_TP_SIZE - (SO_BLOCK_SIZE -1))*SO_NODES_NUM) / SO_USERS_NUM) * 20;
-	
+	return (SO_USERS_NUM /(SO_NODES_NUM*(SO_TP_SIZE-(SO_BLOCK_SIZE - 1))))*2;  /*FORSE più ragionevole*/
 }
               
 
