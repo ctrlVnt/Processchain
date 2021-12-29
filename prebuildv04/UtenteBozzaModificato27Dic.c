@@ -539,7 +539,7 @@ int getBudgetUtente(int indiceLibroMastroRiservato)
 {
     int ultimoIndice;
     int c;
-    ultimoIndice = *puntatoreSharedMemoryIndiceLibroMastro;
+    ultimoIndice = *(puntatoreSharedMemoryIndiceLibroMastro);
 
     for(indiceLibroMastroRiservato; indiceLibroMastroRiservato < ultimoIndice; indiceLibroMastroRiservato++)
     {
