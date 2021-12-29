@@ -187,7 +187,7 @@ utente *puntatoreSharedMemoryTuttiUtenti;
 Id del semaforo che regola l'input sul libro mastro
 Il semaforo di tipo binario.
 */
-int idSemaforoAccessoLibroMastro;
+int idSemaforoAccessoLibroMastro; /*INUTILE*/
 /*
 Id del semaforo che regola l'accesso all'indice
 Il semaforo di tipo binario.
@@ -256,7 +256,7 @@ char parametriPerNodo[12][32];
 char intToStrBuff[32];
 char parametriPerUtente[14][32];
 /*QUESTO UTILIZZIAMO PER NOTIFICARE I NOSTRI CARISSIMI PROCESSI NODI*/
-int *arrayPidProcessiNodi;
+int *arrayPidProcessiNodi; /*INUTILE*/
 
 /**************************************************************************/
 
