@@ -300,8 +300,8 @@ int main(int argc, char const *argv[])
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
-    SO_BLOCK_SIZE = 3;
-    SO_TP_SIZE = 5;
+    SO_BLOCK_SIZE = 10;
+    SO_TP_SIZE = 100;
     idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if (idSharedMemoryLibroMastro == -1)
     {
@@ -1111,9 +1111,9 @@ void stampaTerminale(int flag)
     contPremat = 0;
     /*stampo bilancio utenti*/
     contatoreStampa = 0;
-    printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
     if (SO_USERS_NUM < 20)
     {
+        printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
         for (contatoreStampa; contatoreStampa < SO_USERS_NUM; contatoreStampa++)
         {
             printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].userPid, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato);
@@ -1138,6 +1138,7 @@ void stampaTerminale(int flag)
                 contPremat++;
             }
         }
+        printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
         printf("%09d\t%09d\t%09d <-- UTENTE con budget MAGGIORE\n", utenteMax.userPid, utenteMax.budget, utenteMax.stato);
         printf("%09d\t%09d\t%09d <-- UTENTE con budget MINORE\n", utenteMin.userPid, utenteMin.budget, utenteMin.stato);
     }
@@ -1166,6 +1167,7 @@ void stampaTerminale(int flag)
                 nodoMin = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
             }
         }
+        printf("NODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
         printf("%09d\t%09d\t%09d <-- NODO con budget MAGGIORE\n", nodoMax.nodoPid, nodoMax.budget, nodoMax.transazioniPendenti);
         printf("%09d\t%09d\t%09d <-- NODO con budget MINORE\n", nodoMin.nodoPid, nodoMin.budget, nodoMin.transazioniPendenti);
     }
