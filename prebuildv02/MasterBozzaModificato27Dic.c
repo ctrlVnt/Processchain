@@ -300,8 +300,8 @@ int main(int argc, char const *argv[])
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
-    SO_BLOCK_SIZE = 10;
-    SO_TP_SIZE = 100;
+    SO_BLOCK_SIZE = 100;
+    SO_TP_SIZE = 1000;
     idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if (idSharedMemoryLibroMastro == -1)
     {
@@ -489,7 +489,7 @@ int main(int argc, char const *argv[])
 
     /*INIZIO Inizializzazione SM che contiene i PID degli USER*/
 
-    idSharedMemoryTuttiUtenti = shmget(IPC_PRIVATE, SO_USERS_NUM + 1, 0600 | IPC_CREAT);
+    idSharedMemoryTuttiUtenti = shmget(IPC_PRIVATE, (SO_USERS_NUM + 1) * sizeof(utente), 0600 | IPC_CREAT);
     if (idSharedMemoryTuttiUtenti == -1)
     {
         perror("- shmget idSharedMemoryTuttiUtenti");
@@ -1152,7 +1152,7 @@ void stampaTerminale(int flag)
             if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget > nodoMax.budget && puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget != 0){
                 nodoMax = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
             }
-            if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget < nodoMin.budget && puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget != 0){
+            if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget < nodoMin.budget){
                 nodoMin = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
             }
         }
