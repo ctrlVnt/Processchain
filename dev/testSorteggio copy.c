@@ -34,7 +34,7 @@ int scelgoNodo(){
     clock_gettime(CLOCK_REALTIME, &tempo);
     int ciao = (int)tempo.tv_nsec;
     srand(tempo.tv_nsec);
-    nodoScelto = (rand() % ((19 - 1) - 0 + 1)) + 0;
+    nodoScelto = rand() % (3 - 2 + 1) + 2;
     return nodoScelto;
 }
 

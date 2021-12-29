@@ -158,6 +158,7 @@ int msgsndRisposta;
 transazione transazioneInvio;
 message messaggio;
 int indiceLibroMastroRiservato;
+struct timespec timespecRand;
 /********************/
 
 /*FUNZIONI*/
@@ -174,8 +175,8 @@ int main(int argc, char const *argv[])
 {
     // printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
-    SO_TP_SIZE = 100;
-    SO_BLOCK_SIZE = 10;
+    SO_TP_SIZE = 1000;
+    SO_BLOCK_SIZE = 100;
     indiceLibroMastroRiservato = 0;
 
     soMinTransGenNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[1], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -374,7 +375,7 @@ int main(int argc, char const *argv[])
             semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
             if(errno == EAGAIN)
             {
-                printf("occupata %d\n", semopRisposta);
+                /*printf("occupata %d\n", semopRisposta);*/
                 soRetry--;
                 attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
             }
@@ -394,7 +395,7 @@ int main(int argc, char const *argv[])
                 msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione), 0);
                 if(errno == EAGAIN && msgsndRisposta == -1)
                 {
-                    printf("Coda scelta occupata...\n");
+                    /*printf("Coda scelta occupata...\n");*/
                     soRetry--;
                 }
                 else if(msgsndRisposta != -1){
@@ -465,6 +466,8 @@ int scegliUtenteRandom(int max)
     // printf("Scelgo utente\n");
     int pidRandom;
     int iRandom;
+    clock_gettime(CLOCK_REALTIME, &timespecRand);
+    srand(timespecRand.tv_nsec);
     do
     {
         iRandom = rand()%max + 1;
@@ -485,7 +488,8 @@ int scegliUtenteRandom(int max)
 int scegliNumeroCoda(int max)
 {
     // printf("Scelgo coda...\n");
-    srand(getpid());
+    clock_gettime(CLOCK_REALTIME, &timespecRand);
+    srand(timespecRand.tv_nsec);
     int iCoda;
     iCoda = rand()%max + 1;
     // printf("Ho scelto coda%d\n", iCoda);
@@ -494,8 +498,9 @@ int scegliNumeroCoda(int max)
 
 int getQuantitaRandom(int max)
 {
-    srand(getpid());
-    return rand()%max + 1;
+    clock_gettime(CLOCK_REALTIME, &timespecRand);
+    srand(timespecRand.tv_nsec);
+    return rand() % (max - 2 + 1) + 2;
 }
 
 int getBudgetUtente(int indiceLibroMastroRiservato)

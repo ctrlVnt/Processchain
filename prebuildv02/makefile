@@ -15,7 +15,7 @@ NodoBozzaModificato27Dic:
 	gcc NodoBozzaModificato27Dic.c -o NodoBozza
 
 run:  all
-	./master
+	./MasterBozza
 
 clean: 
 	rm master
