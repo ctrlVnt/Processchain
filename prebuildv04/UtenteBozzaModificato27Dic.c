@@ -24,7 +24,7 @@
 #define USER_OK 1
 #define USER_KO 0
 #define EXIT_PREMAT 2
-#define ENABLE_TEST 0
+#define ENABLE_TEST 1
 
 /*Proposta lista argomenti ricevuto dalla EXECLP*/
 /*
@@ -39,6 +39,10 @@ I parametri della simulazione(comuni a tutti gli utenti):
 7.SO_BUDGET_INIT
 8.ID SM dove ci sono tutti gli pid degli utenti - destinatari
 9.ID semaforo per accedere alla coda di mex
+10. ID semaforo accesso libro mastro
+11. SO_REWARD
+12. SO_TP_SIZE
+13. SO_BLOCK_SIZE
 */
 /****************************************/
 
@@ -159,6 +163,7 @@ transazione transazioneInvio;
 message messaggio;
 int indiceLibroMastroRiservato;
 struct timespec timespecRand;
+int SO_REWARD;
 /********************/
 
 /*FUNZIONI*/
@@ -173,15 +178,10 @@ void attesaNonAttiva(long nsecMin, long nsecMax);
 
 int main(int argc, char const *argv[])
 {
-    // printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
+    printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
-<<<<<<< HEAD
-    SO_TP_SIZE = 50;
-    SO_BLOCK_SIZE = 10;
-=======
-    SO_TP_SIZE = 10;
-    SO_BLOCK_SIZE = 5;
->>>>>>> f600d9b7e00412819030c55f1c41b264b7bf1297
+    SO_TP_SIZE = 0;
+    SO_BLOCK_SIZE = 0;
     indiceLibroMastroRiservato = 0;
 
     soMinTransGenNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[1], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -342,10 +342,37 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     else{
-        printf("\tPuntatore esiste!");
+        printf("\tPuntatore esiste!\n");
     }
     #if(ENABLE_TEST)
-        printf("\tValore indiceLibroMastro: %d\n", *(puntatoreSharedMemoryIndiceLibroMastro));
+        printf("\tValore indiceLibroMastro: %d\n", *puntatoreSharedMemoryIndiceLibroMastro);
+    #endif
+    SO_REWARD = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[11], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_REWARD == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_REWARD");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("\t U SO_REWARD: %d\n", SO_REWARD);
+    #endif
+    SO_TP_SIZE = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[12], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_TP_SIZE == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_TP_SIZE");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("\t U SO_TP_SIZE: %d\n", SO_TP_SIZE);
+    #endif
+    SO_BLOCK_SIZE = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[13], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_BLOCK_SIZE == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_BLOCK_SIZE");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("U SO_BLOCK_SIZE: %d\n", SO_BLOCK_SIZE);
     #endif
 
     /*imposto l'handler*/
@@ -368,7 +395,7 @@ int main(int argc, char const *argv[])
         /**/
         indiceLibroMastroRiservato =  getBudgetUtente(indiceLibroMastroRiservato);
         transazioneInvio.receiver = scegliUtenteRandom(numeroTotaleUtenti);
-        transazioneInvio.reward = 10;
+        transazioneInvio.reward = 0;
         idCoda = scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
         // printf("\nID CODA SCELTO: %d\n", puntatoreSharedMemoryTuttiNodi[idCoda].mqId);
         if(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget >= 2)
@@ -387,7 +414,7 @@ int main(int argc, char const *argv[])
             else{
                 // printf("[%d] ho abbastanza budget %d\n", getpid(), puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
                 q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
-                transazioneInvio.reward = (q *5)/100;
+                transazioneInvio.reward = (q * SO_REWARD)/100;
                 if(transazioneInvio.reward == 0)
                 {
                     transazioneInvio.reward = 1;
