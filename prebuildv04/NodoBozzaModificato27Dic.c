@@ -29,6 +29,8 @@ I parametri della simulazione(comuni a tutti i nodi):
 7.ID semaforo del libro mastro
 8.ID semaforo dell'indice libro mastro
 9.ID semaforo Mia coda di messaggi
+10. SO_TP_SIZE
+11. SO_BLOCK_SIZE
 */
 /****************************************/
 
@@ -38,6 +40,7 @@ I parametri della simulazione(comuni a tutti i nodi):
 #define NODO_CONTINUE 1
 #define NODO_STOP 0
 #define SENDER_NODO -1
+#define ENABLE_TEST 1
 
 /*STRUTTURE*/
 
@@ -159,11 +162,11 @@ void aggiornaBilancioNodo(int indiceLibroMastroRiservato);
 
 int main(int argc, char const *argv[])
 {
-    // printf("%s: nodo[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
+    printf("%s: nodo[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
 
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
-    SO_TP_SIZE = 10;
-    SO_BLOCK_SIZE = 5;
+    SO_TP_SIZE = 1000;
+    SO_BLOCK_SIZE = 100;
 
     /*LIMITI DI TEMPO*/
     /*Recupero primo parametro*/
@@ -286,7 +289,24 @@ int main(int argc, char const *argv[])
     }
     /*TEST*/
     // printf("idSemaforoAccessoMiaCodaMessaggi: %d\n", idSemaforoAccessoMiaCodaMessaggi);
-
+    SO_TP_SIZE = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[10], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_TP_SIZE == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_TP_SIZE");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf(" N SO_TP_SIZE: %d\n", SO_TP_SIZE);
+    #endif
+    SO_BLOCK_SIZE = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[11], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_BLOCK_SIZE == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_BLOCK_SIZE");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("N SO_BLOCK_SIZE: %d\n", SO_BLOCK_SIZE);
+    #endif
     /*imposto l'handler*/
     sigactionSigusr1Nuova.sa_flags = 0;
     sigemptyset(&sigactionSigusr1Nuova.sa_mask);

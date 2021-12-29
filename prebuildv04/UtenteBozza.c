@@ -23,8 +23,6 @@
 #define UTENTE_STOP 0
 #define USER_OK 1
 #define USER_KO 0
-#define EXIT_PREMAT 2
-#define ENABLE_TEST 0
 
 /*Proposta lista argomenti ricevuto dalla EXECLP*/
 /*
@@ -92,10 +90,6 @@ typedef struct nodo_ds
 /***********/
 
 /*VARIABILI GLOBALI*/
-/*La capacita' della transaction pool associata a ciascun nodo per immagazzinare le transazioni da elaborare - NOTA A COMPILE TIME*/
-int SO_TP_SIZE;
-/*Le transazioni sono elaborate in blocchi, la variabile seguente determina la sua capacita', che dev'essere minore rispetto alla capacita' della transacion pool - NOTA A COMPILE TIME*/
-int SO_BLOCK_SIZE;
 /**/
 int soRetry;
 /**/
@@ -118,10 +112,6 @@ int numeroOrdine;
 int idSharedMemoryLibroMastro;
 /*Dopo l'attach, punta alla porzione di memoria dove si trova effettivamente il libro mastro*/
 transazione *puntatoreSharedMemoryLibroMastro;
-/*ID SM dove si trova l'indice del libro mastro*/
-int idSharedMemoryIndiceLibroMastro;
-/*Dopo l'attach, punta alla porzione di memoria condivisa dove si trova effettivamente l'indice del libro mastro*/
-int *puntatoreSharedMemoryIndiceLibroMastro;
 /*ID della SM contenente tutti i PID dei processi utenti - visti come destinatari*/
 int idSharedMemoryTuttiUtenti;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente i PID degli utenti*/
@@ -154,11 +144,6 @@ struct sigaction actPrecedente;
 /*variabile usata come secondo parametro nella funzione strtol, come puntatore dove la conversionbe della stringa ha avuto fine*/
 char *endptr;
 int shmdtRisposta;
-int msgsndRisposta;
-transazione transazioneInvio;
-message messaggio;
-int indiceLibroMastroRiservato;
-struct timespec timespecRand;
 /********************/
 
 /*FUNZIONI*/
@@ -166,18 +151,12 @@ struct timespec timespecRand;
 void sigusr1Handler(int sigNum);
 int scegliUtenteRandom(int max);
 int scegliNumeroCoda(int max);
-int getQuantitaRandom(int max);
-int getBudgetUtente(int indiceLibroMastroRiservato);
-void attesaNonAttiva(long nsecMin, long nsecMax);
+
 /**********/
 
 int main(int argc, char const *argv[])
 {
-    // printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
-    /*INIZIALIZZO VARIABILI A COMPILE TIME*/
-    SO_TP_SIZE = 10;
-    SO_BLOCK_SIZE = 5;
-    indiceLibroMastroRiservato = 0;
+    printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
 
     soMinTransGenNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[1], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(soMinTransGenNsec == 0 && errno == EINVAL)
@@ -191,9 +170,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(TEST_ENABLED)
-        printf("\tsoMinTransProcNsec: %ld\n", soMinTransGenNsec);
-    #endif
+    printf("\tsoMinTransProcNsec: %ld\n", soMinTransGenNsec);
     soMaxTransGenNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[2], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(soMinTransGenNsec == 0 && errno == EINVAL)
     {
@@ -206,9 +183,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(TEST_ENABLED)
-        printf("\tsoMaxTransProcNsec: %ld\n", soMaxTransGenNsec);
-    #endif
+    printf("\tsoMaxTransProcNsec: %ld\n", soMaxTransGenNsec);
 
     /*ID DELLA SH DI TUTTE LE CODE DI MESSAGGI*/
     idSharedMemoryTuttiNodi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[3], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -218,9 +193,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tidSharedMemoryTutteCodeMessaggi: %d\n", idSharedMemoryTuttiNodi);
-    #endif
+    printf("\tidSharedMemoryTutteCodeMessaggi: %d\n", idSharedMemoryTuttiNodi);
     
     /*ID OK -- effettuo l'attach*/
     puntatoreSharedMemoryTuttiNodi = (nodo *)shmat(idSharedMemoryTuttiNodi, NULL, 0);
@@ -237,9 +210,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tnumeroOrdineUtente: %d\n", numeroOrdine);
-    #endif
+    printf("\tnumeroOrdineUtente: %d\n", numeroOrdine);
 
     idSharedMemoryLibroMastro = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[5], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(idSharedMemoryLibroMastro == 0 && errno == EINVAL)
@@ -248,9 +219,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tidSharedMemoryLibroMastro: %d\n", idSharedMemoryLibroMastro);
-    #endif
+    printf("\tidSharedMemoryLibroMastro: %d\n", idSharedMemoryLibroMastro);
     
     /*ID OK -- effettuo l'attach*/
     puntatoreSharedMemoryLibroMastro = (transazione *)shmat(idSharedMemoryLibroMastro, NULL, 0);
@@ -268,9 +237,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tsoRetry: %d\n", soRetry);
-    #endif
+    printf("\tsoRetry: %d\n", soRetry);
 
     /*Recupero SO_BUDGET_INIT*/
     soBudgetInit = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[7], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -280,9 +247,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tsoBudgetInit: %d\n", soBudgetInit);
-    #endif
+    printf("\tsoBudgetInit: %d\n", soBudgetInit);
 
     idSharedMemoryTuttiUtenti = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[8], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(idSharedMemoryTuttiUtenti == 0 && errno == EINVAL)
@@ -291,9 +256,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tidSharedMemoryTuttiUtenti: %d\n", idSharedMemoryTuttiUtenti);
-    #endif
+    printf("\tidSharedMemoryTuttiUtenti: %d\n", idSharedMemoryTuttiUtenti);
     
     /*ID OK -- effettuo l'attach*/
     puntatoreSharedMemoryTuttiUtenti = (utente *)shmat(idSharedMemoryTuttiUtenti, NULL, 0);
@@ -303,9 +266,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     numeroTotaleUtenti = puntatoreSharedMemoryTuttiUtenti[0].userPid;
-    #if(ENABLE_TEST)
-        printf("\tNumero totale di Utenti: %d\n", puntatoreSharedMemoryTuttiUtenti[0].userPid);
-    #endif
+    printf("\tNumero totale di Utenti: %d\n", puntatoreSharedMemoryTuttiUtenti[0].userPid);
 
     idSemaforoAccessoCodeMessaggi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[9], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
     if(idSemaforoAccessoCodeMessaggi == 0 && errno == EINVAL)
@@ -314,34 +275,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tidSemaforoAccessoCodeMessaggi: %d\n", idSemaforoAccessoCodeMessaggi);
-    #endif
-
-    /*Mi atacco alla SM che contiene l'indice del libro mastro*/
-    idSharedMemoryIndiceLibroMastro = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[10], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
-    if (idSharedMemoryIndiceLibroMastro == 0 && errno == EINVAL)
-    {
-        perror("Errore di conversione");
-        exit(EXIT_FAILURE);
-    }
-    /*TEST*/
-    #if(ENABLE_TEST)
-        printf("\tidSharedMemoryIndiceLibroMastro: %d\n", idSharedMemoryIndiceLibroMastro);
-    #endif
-    /*ID OK -- effettuo l'attach*/
-    puntatoreSharedMemoryIndiceLibroMastro = (int *)shmat(idSharedMemoryIndiceLibroMastro, NULL, 0);
-    if (*puntatoreSharedMemoryIndiceLibroMastro == -1)
-    {
-        perror("shmat");
-        exit(EXIT_FAILURE);
-    }
-    else{
-        printf("\tPuntatore esiste!");
-    }
-    #if(ENABLE_TEST)
-        printf("\tValore indiceLibroMastro: %d\n", *(puntatoreSharedMemoryIndiceLibroMastro));
-    #endif
+    printf("\tidSemaforoAccessoCodeMessaggi: %d\n", idSemaforoAccessoCodeMessaggi);
 
     /*imposto l'handler*/
     sigactionSigusr1Nuova.sa_flags = 0;
@@ -351,81 +285,15 @@ int main(int argc, char const *argv[])
 
     /*ciclo di vita utente*/
     user = UTENTE_CONTINUE;
-    int q;
-    int idCoda;
-    int semopRisposta;
-    transazioneInvio.sender = getpid();
-    // printf("\t[%d] inizia\n", getpid());
-    while(user == UTENTE_CONTINUE)
+    while(user)
     {
-        //printf("_______UTNTE____________\n");
-        //printf("%d ha scelto %d e la coda ordine ID %d\n", getpid(), scegliUtenteRandom(numeroTotaleUtenti), puntatoreSharedMemoryTuttiNodi[scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid)].mqId);
-        /**/
-        indiceLibroMastroRiservato =  getBudgetUtente(indiceLibroMastroRiservato);
-        transazioneInvio.receiver = scegliUtenteRandom(numeroTotaleUtenti);
-        transazioneInvio.reward = 10;
-        idCoda = scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
-        // printf("\nID CODA SCELTO: %d\n", puntatoreSharedMemoryTuttiNodi[idCoda].mqId);
-        if(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget >= 2)
-        {
-            /*tentativo riservare un posto nella coda*/
-            operazioniSemaforo.sem_flg = IPC_NOWAIT;
-            operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
-            operazioniSemaforo.sem_op = -1;
-            semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
-            if(errno == EAGAIN)
-            {
-                /*printf("occupata %d\n", semopRisposta);*/
-                soRetry--;
-                attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
-            }
-            else{
-                // printf("[%d] ho abbastanza budget %d\n", getpid(), puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
-                q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
-                transazioneInvio.reward = (q *5)/100;
-                if(transazioneInvio.reward == 0)
-                {
-                    transazioneInvio.reward = 1;
-                }
-                transazioneInvio.quantita = q - transazioneInvio.reward;
-                
-                clock_gettime(CLOCK_BOOTTIME, &transazioneInvio.timestamp);
-                messaggio.mtype = getpid();
-                messaggio.transazione = transazioneInvio;
-                msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione), 0);
-                if(errno == EAGAIN && msgsndRisposta == -1)
-                {
-                    /*printf("Coda scelta occupata...\n");*/
-                    soRetry--;
-                }
-                else if(msgsndRisposta != -1){
-                    //printf("[%d] messaggio inviato con risposta %d\n", getpid(), msgsndRisposta);
-                    puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget -= transazioneInvio.quantita;
-                    attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
-                }
-            }
-        }
-        else
-        {
-            // printf("\nFACCIO SO RETRY\n");
-            soRetry--;
-            attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
-        }
-        if(soRetry <= 0)
-        {
-            user = UTENTE_STOP;
-        }
+        printf("%d ha scelto %d e la coda ordine ID %d\n", getpid(), scegliUtenteRandom(numeroTotaleUtenti), puntatoreSharedMemoryTuttiNodi[scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid)].mqId);
+        sleep(2);
     }
 
     /*fine ciclo di vita utente*/
 
     //*Deallocazione delle risorse*/
-    shmdtRisposta = shmdt(puntatoreSharedMemoryIndiceLibroMastro);
-    if (shmdtRisposta == -1)
-    {
-        perror("shmdt puntatoreSharedMemoryIndiceLibroMastro");
-        exit(EXIT_FAILURE);
-    }
     shmdtRisposta = shmdt(puntatoreSharedMemoryTuttiUtenti);
     if(shmdtRisposta == -1)
     {
@@ -445,13 +313,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     printf("Risorse deallocate correttamente\n");
-    if(user == UTENTE_STOP)
-    {
-        exit(EXIT_PREMAT);
-    }
-    else{
-        exit(EXIT_SUCCESS);
-    }
+    return 0;
 }
 
 void sigusr1Handler(int sigNum)
@@ -461,84 +323,29 @@ void sigusr1Handler(int sigNum)
 }
 
 /*funzione che restituisce il pid del utente random*/
+/*da cambiare*/
 int scegliUtenteRandom(int max)
 {
-    // printf("Scelgo utente\n");
     int pidRandom;
     int iRandom;
-    clock_gettime(CLOCK_REALTIME, &timespecRand);
-    srand(timespecRand.tv_nsec);
     do
     {
         iRandom = rand()%max + 1;
-        if(iRandom == max)
-        {
-            iRandom--;
-        }
         if(puntatoreSharedMemoryTuttiUtenti[iRandom].stato != USER_KO)
         {
             pidRandom = puntatoreSharedMemoryTuttiUtenti[iRandom].userPid;
         }
     }
-    while(pidRandom == getpid() || pidRandom <= 0);
-    // printf("[%d]Ho scelto: %d\n", getpid(), pidRandom);
+    while(pidRandom == getpid());
+
     return pidRandom;
 }
 
 int scegliNumeroCoda(int max)
 {
-    // printf("Scelgo coda...\n");
-    clock_gettime(CLOCK_REALTIME, &timespecRand);
-    srand(timespecRand.tv_nsec);
+    srand(rand()%getpid()+1);
     int iCoda;
     iCoda = rand()%max + 1;
-    // printf("Ho scelto coda%d\n", iCoda);
+
     return iCoda;
-}
-
-int getQuantitaRandom(int max)
-{
-    clock_gettime(CLOCK_REALTIME, &timespecRand);
-    srand(timespecRand.tv_nsec);
-    return rand() % (max - 2 + 1) + 2;
-}
-
-int getBudgetUtente(int indiceLibroMastroRiservato)
-{
-    int ultimoIndice;
-    int c;
-    ultimoIndice = *puntatoreSharedMemoryIndiceLibroMastro;
-
-    for(indiceLibroMastroRiservato; indiceLibroMastroRiservato < ultimoIndice; indiceLibroMastroRiservato++)
-    {
-        for(c = 0; c < SO_BLOCK_SIZE - 1; c++)
-        {
-            if(puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE + c].receiver == getpid())
-            {
-                puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget += puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE + c].quantita;
-            }
-        }
-    }
-    /*TEST*/
-    // printf("[%d] aggiornamento bilancio terminato\n", getpid());
-    return indiceLibroMastroRiservato;
-}
-
-void attesaNonAttiva(long nsecMin, long nsecMax)
-{
-    srand(getpid());
-    long ntos = 1e9L;
-    long diff = nsecMax - nsecMin;
-    long attesa = rand() % diff + nsecMin;
-    int sec = attesa / ntos;
-    long nsec = attesa - (sec * ntos);
-    /*TEST*/
-    // printf("SEC: %d\n", sec);
-    // printf("NSEC: %ld\n", nsec);
-    struct timespec tempoDiAttesa;
-    tempoDiAttesa.tv_sec = sec;
-    tempoDiAttesa.tv_nsec = nsec;
-    nanosleep(&tempoDiAttesa, NULL);
-    /*TODO - MASCERARE IL SEGNALE SIGCONT*/
-    // printf("FINITO DI ATTENDERE!!!!");
 }

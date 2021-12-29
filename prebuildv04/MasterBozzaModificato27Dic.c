@@ -252,9 +252,9 @@ int motivoTerminazione;
 
 /*Variabili necessari per poter avviare i nodi, successivamente gli utenti*/
 
-char parametriPerNodo[10][32];
+char parametriPerNodo[12][32];
 char intToStrBuff[32];
-char parametriPerUtente[11][32];
+char parametriPerUtente[14][32];
 /*QUESTO UTILIZZIAMO PER NOTIFICARE I NOSTRI CARISSIMI PROCESSI NODI*/
 int *arrayPidProcessiNodi;
 
@@ -300,7 +300,7 @@ int main(int argc, char const *argv[])
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
-    SO_BLOCK_SIZE = 10;
+    SO_BLOCK_SIZE = 3;
     SO_TP_SIZE = 5;
     idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if (idSharedMemoryLibroMastro == -1)
@@ -582,12 +582,16 @@ int main(int argc, char const *argv[])
             strcpy(parametriPerNodo[8], intToStrBuff);
             sprintf(intToStrBuff, "%d", idSemaforoAccessoNodoCodaMessaggi);
             strcpy(parametriPerNodo[9], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_TP_SIZE);
+            strcpy(parametriPerNodo[10], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_BLOCK_SIZE);
+            strcpy(parametriPerNodo[11], intToStrBuff);
 
             /*FINE Lista*/
 
             // printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./NodoBozza", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], NULL);
+            execRisposta = execlp("./NodoBozza", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], parametriPerNodo[10], parametriPerNodo[11], NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
@@ -702,10 +706,16 @@ int main(int argc, char const *argv[])
             strcpy(parametriPerUtente[9], intToStrBuff);
             sprintf(intToStrBuff, "%d", idSharedMemoryIndiceLibroMastro);
             strcpy(parametriPerUtente[10], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_REWARD);
+            strcpy(parametriPerUtente[11], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_TP_SIZE);
+            strcpy(parametriPerUtente[12], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_BLOCK_SIZE);
+            strcpy(parametriPerUtente[13], intToStrBuff);
 
             // printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./UtenteBozza", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], NULL);
+            execRisposta = execlp("./UtenteBozza", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], parametriPerUtente[11], parametriPerUtente[12], parametriPerUtente[13], NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
