@@ -1110,7 +1110,7 @@ int scelgoNodo(){
 */
 
 void sendTransaction(){
-      shmArrayUsersPidPtr[i].bilancio = calcoloBilancio(shmArrayUsersPidPtr[i]);
+      
     if (shmArrayUsersPidPtr[i].bilancio >= 2)
                 {	
                 	

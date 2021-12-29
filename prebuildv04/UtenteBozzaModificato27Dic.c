@@ -503,10 +503,7 @@ int scegliUtenteRandom(int max)
     do
     {
         iRandom = rand()%max + 1;
-        if(iRandom == max)
-        {
-            iRandom--;
-        }
+    
         if(puntatoreSharedMemoryTuttiUtenti[iRandom].stato != USER_KO)
         {
             pidRandom = puntatoreSharedMemoryTuttiUtenti[iRandom].userPid;
