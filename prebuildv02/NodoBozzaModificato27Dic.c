@@ -162,8 +162,13 @@ int main(int argc, char const *argv[])
     // printf("%s: nodo[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
 
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
+<<<<<<< HEAD
+    SO_TP_SIZE = 50;
+    SO_BLOCK_SIZE = 10;
+=======
     SO_TP_SIZE = 10;
     SO_BLOCK_SIZE = 5;
+>>>>>>> f600d9b7e00412819030c55f1c41b264b7bf1297
 
     /*LIMITI DI TEMPO*/
     /*Recupero primo parametro*/
