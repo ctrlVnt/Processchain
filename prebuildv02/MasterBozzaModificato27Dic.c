@@ -273,6 +273,13 @@ void stampaTerminale();
 
 /**********/
 
+/*VARIABILI PER LA STAMPA*/
+utente utenteMax;
+utente utenteMin;
+nodo nodoMax;
+nodo nodoMin;
+/********/
+
 int main(int argc, char const *argv[])
 {
     printf("Sono MASTER[%d]\n", getpid());
@@ -1095,24 +1102,62 @@ void stampaTerminale(int flag)
     /*stampo bilancio utenti*/
     contatoreStampa = 0;
     printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
-    for (contatoreStampa; contatoreStampa < SO_USERS_NUM; contatoreStampa++)
+    if (SO_USERS_NUM < 20)
     {
-        printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].userPid, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato);
-        if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
+        for (contatoreStampa; contatoreStampa < SO_USERS_NUM; contatoreStampa++)
         {
-            contPremat++;
+            printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].userPid, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato);
+            if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
+            {
+                contPremat++;
+            }
         }
+    }else{
+        utenteMax.budget = 0;
+        utenteMin.budget = SO_BUDGET_INIT;
+        for (contatoreStampa; contatoreStampa < SO_USERS_NUM; contatoreStampa++)
+        {
+           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget > utenteMax.budget && puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato != USER_KO){
+               utenteMax = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
+           }
+           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget < utenteMin.budget && puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato != USER_KO){
+               utenteMin = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
+           }
+           if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
+            {
+                contPremat++;
+            }
+        }
+        printf("%09d\t%09d\t%09d <-- UTENTE con budget MAGGIORE\n", utenteMax.userPid, utenteMax.budget, utenteMax.stato);
+        printf("%09d\t%09d\t%09d <-- UTENTE con budget MINORE\n", utenteMin.userPid, utenteMin.budget, utenteMin.stato);
     }
     if (flag == 1)
     {
         printf("*******\n# Utenti terminati prematuramente: %d / %d\n**********\n", contPremat, SO_USERS_NUM);
         master = MASTER_STOP;
     }
-    printf("NODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
     contatoreStampa = 0;
-    for (contatoreStampa; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
+    if (SO_NODES_NUM < 20)
     {
-        printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].nodoPid, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].transazioniPendenti);
+        printf("NODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
+        for (contatoreStampa; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
+        {
+            printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].nodoPid, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].transazioniPendenti);
+        }
+    }else{
+        for (contatoreStampa; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
+        {
+            nodoMax.budget = 0;
+            nodoMin.budget = SO_BUDGET_INIT;
+            if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget > nodoMax.budget && puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget != 0){
+                nodoMax = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
+            }
+            if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget < nodoMin.budget && puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget != 0){
+                nodoMin = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
+            }
+        }
+        printf("%09d\t%09d\t%09d <-- NODO con budget MAGGIORE\n", nodoMax.nodoPid, nodoMax.budget, nodoMax.transazioniPendenti);
+        printf("%09d\t%09d\t%09d <-- NODO con budget MINORE\n", nodoMin.nodoPid, nodoMin.budget, nodoMin.transazioniPendenti);
     }
     printf("*******\nNumero di blocchi: %d\n", *(puntatoreSharedMemoryIndiceLibroMastro));
 }
