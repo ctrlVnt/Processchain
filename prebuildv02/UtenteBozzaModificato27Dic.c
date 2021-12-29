@@ -175,8 +175,8 @@ int main(int argc, char const *argv[])
 {
     // printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
-    SO_TP_SIZE = 1000;
-    SO_BLOCK_SIZE = 100;
+    SO_TP_SIZE = 50;
+    SO_BLOCK_SIZE = 10;
     indiceLibroMastroRiservato = 0;
 
     soMinTransGenNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[1], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
