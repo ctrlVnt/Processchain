@@ -370,7 +370,6 @@ int main(int argc, char const *argv[])
         indiceLibroMastroRiservato =  getBudgetUtente(indiceLibroMastroRiservato);
         transazioneInvio.receiver = scegliUtenteRandom(numeroTotaleUtenti);
         if(transazioneInvio.receiver == -1){
-        	user = UTENTE_STOP;
         	break;
         }
         transazioneInvio.reward = 0;

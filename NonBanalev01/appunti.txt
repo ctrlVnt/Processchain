@@ -1,4 +1,5 @@
-
+UTENTE
+	-usa struttura dati FRIENDS
 
 MASTER
 	-parsare SO_FRIENDS_NUM
