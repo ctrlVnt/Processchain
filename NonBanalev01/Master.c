@@ -56,6 +56,7 @@ typedef struct nodo_ds
     int budget;
     /*getpid()*/
     int nodoPid;
+    int *friends;
     int transazioniPendenti;
 } nodo;
 
@@ -89,6 +90,8 @@ int SO_BUDGET_INIT;
 int SO_SIM_SEC;
 /*VERSIONE FULL - Indica il numero di processi nodi-amici*/
 int SO_FRIENDS_NUM;
+/*VERSIONE FULL  - Indica il numero di tentativi di invio della transazione*/
+int SO_HOPS;
 
 /****************************/
 
@@ -106,6 +109,8 @@ int idSharedMemoryIndiceLibroMastro;
 int idSharedMemoryTuttiNodi;
 /*ID della SM contenente tutti i PID dei processi utenti - visti come destinatari*/
 int idSharedMemoryTuttiUtenti;
+/*ID della SM che contiene i NODE_FRINEDS di ciascun nodo*/
+int idSharedMemoryAmiciNodi;
 
 /*******/
 
@@ -119,6 +124,8 @@ int *puntatoreSharedMemoryIndiceLibroMastro;
 nodo *puntatoreSharedMemoryTuttiNodi;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente i PID degli utenti*/
 utente *puntatoreSharedMemoryTuttiUtenti;
+/*Dopo l'attach punta alla porzione di memroia dove si trovano gli amici del nodo*/
+int *puntatoreSharedMemoryAmiciNodi;
 
 /*************/
 
@@ -128,7 +135,7 @@ utente *puntatoreSharedMemoryTuttiUtenti;
 Id del semaforo che regola l'input sul libro mastro
 Il semaforo di tipo binario.
 */
-int idSemaforoAccessoLibroMastro;
+/*int idSemaforoAccessoLibroMastro;*/
 /*
 Id del semaforo che regola l'accesso all'indice
 Il semaforo di tipo binario.
@@ -193,11 +200,9 @@ int motivoTerminazione;
 
 /*Variabili necessari per poter avviare i nodi, successivamente gli utenti*/
 
-char parametriPerNodo[13][32];
+char parametriPerNodo[15][32];
 char intToStrBuff[32];
-char parametriPerUtente[14][32];
-
-
+char parametriPerUtente[17][32];
 
 /**************************************************************************/
 
@@ -241,7 +246,7 @@ int main(int argc, char const *argv[])
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
-    idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE *SO_BLOCK_SIZE*sizeof(transazione), 0600 | IPC_CREAT);
+    idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if (idSharedMemoryLibroMastro == -1)
     {
         perror("- shmget idSharedMemoryLibroMastro");
@@ -262,7 +267,7 @@ int main(int argc, char const *argv[])
 #endif
 
     /*SEMAFORO*/
-    idSemaforoAccessoLibroMastro = semget(IPC_PRIVATE, 1, 0600 | IPC_CREAT);
+    /*idSemaforoAccessoLibroMastro = semget(IPC_PRIVATE, 1, 0600 | IPC_CREAT);
     if (idSemaforoAccessoLibroMastro == -1)
     {
         perror("semget idSemaforoAccessoLibroMastro");
@@ -270,8 +275,8 @@ int main(int argc, char const *argv[])
     }
 #if (ENABLE_TEST)
     printf("+ idSemaforoAccessoLibroMastro creato con successo - %d\n", idSemaforoAccessoLibroMastro);
-#endif
-    operazioniSemaforo.sem_flg = 0;
+#endif*/
+    /*operazioniSemaforo.sem_flg = 0;
     operazioniSemaforo.sem_num = 0;
     operazioniSemaforo.sem_op = 1;
     semopRisposta = semop(idSemaforoAccessoLibroMastro, &operazioniSemaforo, 1);
@@ -282,7 +287,7 @@ int main(int argc, char const *argv[])
     }
 #if (ENABLE_TEST)
     printf("+ semaforo idSemaforoAccessoLibroMastro inizialiizato a 1\n");
-#endif
+#endif*/
 
     /*FINE Inizializzazione LIBRO MASTRO*/
 
@@ -325,15 +330,15 @@ int main(int argc, char const *argv[])
     semopRisposta = semop(idSemaforoAccessoIndiceLibroMastro, &operazioniSemaforo, 1);
     if (semopRisposta == -1)
     {
-        perror("- semop idSemaforoAccessoLibroMastro");
+        perror("- semop idSemaforoAccessoIndiceLibroMastro");
         exit(EXIT_FAILURE);
     }
 #if (ENABLE_TEST)
-    printf("+ semaforo idSemaforoAccessoLibroMastro inizialiizato a 1\n");
+    printf("+ semaforo idSemaforoAccessoIndiceLibroMastro inizialiizato a 1\n");
 #endif
 
     /*FINE Inizializzazione INDICE LIBRO MASTRO*/
-    
+
     /*SM*/
     /*REMINDER x2, prima cella di questa SM indica il NUMERO totale di CODE presenti, quindi rispecchia anche il numero dei nodi presenti*/
     idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (2 * SO_NODES_NUM + 1), 0600 | IPC_CREAT);
@@ -377,6 +382,22 @@ int main(int argc, char const *argv[])
 #if (ENABLE_TEST)
     printf("+ registrazione tutteCodeMessaggi avvenuta con successo, totale code %d\n", numeroNodi);
 #endif
+
+    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, SO_NODES_NUM * SO_FRIENDS_NUM * sizeof(int), 0600 | IPC_CREAT);
+    if (idSharedMemoryAmiciNodi == -1)
+    {
+        perror("shmget idSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
+#if (ENABLE_TEST)
+    printf("+ idSharedMemoryAmiciNodi creato con successo - %d\n", idSharedMemoryAmiciNodi);
+#endif
+    puntatoreSharedMemoryAmiciNodi = (int *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
+    if (errno == EINVAL)
+    {
+        perror("- shmat idSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
     /*SEMAFORI*/
     idSemaforoAccessoNodoCodaMessaggi = semget(IPC_PRIVATE, 2 * SO_NODES_NUM, 0600 | IPC_CREAT);
     if (idSemaforoAccessoNodoCodaMessaggi == -1)
@@ -507,9 +528,9 @@ int main(int argc, char const *argv[])
             strcpy(parametriPerNodo[5], intToStrBuff);
             sprintf(intToStrBuff, "%d", idSharedMemoryIndiceLibroMastro);
             strcpy(parametriPerNodo[6], intToStrBuff);
-            sprintf(intToStrBuff, "%d", idSemaforoAccessoLibroMastro);
+            sprintf(intToStrBuff, "%d", SO_HOPS);
             strcpy(parametriPerNodo[7], intToStrBuff);
-            sprintf(intToStrBuff, "%d", idSemaforoAccessoIndiceLibroMastro);
+            sprintf(intToStrBuff, "%d", idSemaforoAccessoIndiceLibroMastro); /*sostituire con SO_HOPS o SO_NUM_FRIEND*/
             strcpy(parametriPerNodo[8], intToStrBuff);
             sprintf(intToStrBuff, "%d", idSemaforoAccessoNodoCodaMessaggi);
             strcpy(parametriPerNodo[9], intToStrBuff);
@@ -519,12 +540,16 @@ int main(int argc, char const *argv[])
             strcpy(parametriPerNodo[11], intToStrBuff);
             sprintf(intToStrBuff, "%d", SO_REGISTRY_SIZE);
             strcpy(parametriPerNodo[12], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_FRIENDS_NUM);
+            strcpy(parametriPerNodo[13], intToStrBuff);
+            sprintf(intToStrBuff, "%d", idSharedMemoryAmiciNodi);
+            strcpy(parametriPerNodo[14], intToStrBuff);
 
             /*FINE Lista*/
 
             // printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./NodoBozza.out", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], parametriPerNodo[10], parametriPerNodo[11], parametriPerNodo[12], NULL);
+            execRisposta = execlp("./NodoBozza.out", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], parametriPerNodo[10], parametriPerNodo[11], parametriPerNodo[12], parametriPerNodo[13], parametriPerNodo[14], NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
@@ -645,10 +670,16 @@ int main(int argc, char const *argv[])
             strcpy(parametriPerUtente[12], intToStrBuff);
             sprintf(intToStrBuff, "%d", SO_BLOCK_SIZE);
             strcpy(parametriPerUtente[13], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_FRIENDS_NUM);
+            strcpy(parametriPerUtente[14], intToStrBuff);
+            sprintf(intToStrBuff, "%d", SO_HOPS);
+            strcpy(parametriPerUtente[15], intToStrBuff);
+            sprintf(intToStrBuff, "%d", idSharedMemoryAmiciNodi);
+            strcpy(parametriPerUtente[16], intToStrBuff);
 
             // printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./UtenteBozza.out", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], parametriPerUtente[11], parametriPerUtente[12], parametriPerUtente[13], NULL);
+            execRisposta = execlp("./UtenteBozza.out", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], parametriPerUtente[11], parametriPerUtente[12], parametriPerUtente[13], parametriPerUtente[14], parametriPerUtente[15], parametriPerUtente[16], NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
@@ -719,24 +750,24 @@ int main(int argc, char const *argv[])
         /**/
         /*verifico se qualcuno ha cambiato lo stato senza attendere*/
         int a = 0;
-        while((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != 0)
+        while ((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != 0)
         {
             if (WIFEXITED(childStatus))
             {
                 puntatoreSharedMemoryTuttiUtenti[0].userPid--;
                 /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
-               /* }*/
+                /* }*/
             }
         }
-        
+
         if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= 1)
-                {
-                    /*COME SE ALLARME SCATASSE*/
-                    // stampaTerminale(1);
-                    raise(SIGALRM);
-                    master = MASTER_STOP;
-                    motivoTerminazione = NO_UTENTI_VIVI;
-                }
+        {
+            /*COME SE ALLARME SCATASSE*/
+            // stampaTerminale(1);
+            raise(SIGALRM);
+            master = MASTER_STOP;
+            motivoTerminazione = NO_UTENTI_VIVI;
+        }
     }
 
     /***********************************/
@@ -751,18 +782,30 @@ int main(int argc, char const *argv[])
     /**********************************/
     /*void stampaLibroMastro()
 /*{*/
- /*   printf("RECEIVER(PID)|SENDER(PID)|QUANTITA|SEC_ELAPSED\n");
-    for(int i = 0; i < *puntatoreSharedMemoryIndiceLibroMastro; i++)
-    {
-        for(int j = 0; j < SO_BLOCK_SIZE; j++)
-        {
-            printf("|%010d||%010d||%010d||%s\n", puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].receiver, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].sender, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].quantita, ctime(&puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].timestamp.tv_sec));
-        }
-        printf("\n");
-    }*/
+    /*   printf("RECEIVER(PID)|SENDER(PID)|QUANTITA|SEC_ELAPSED\n");
+       for(int i = 0; i < *puntatoreSharedMemoryIndiceLibroMastro; i++)
+       {
+           for(int j = 0; j < SO_BLOCK_SIZE; j++)
+           {
+               printf("|%010d||%010d||%010d||%s\n", puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].receiver, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].sender, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].quantita, ctime(&puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].timestamp.tv_sec));
+           }
+           printf("\n");
+       }*/
     printf("Indice: %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
-/*}*/
+    /*}*/
     /*Chiusura delle risorse*/
+    shmdtRisposta = shmdt(puntatoreSharedMemoryAmiciNodi);
+    if (shmdtRisposta == -1)
+    {
+        perror("- shmdt puntatoreSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
+    shmctlRisposta = shmctl(idSharedMemoryAmiciNodi, IPC_RMID, NULL);
+    if (shmctlRisposta == -1)
+    {
+        perror("- shmctl idSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
     shmdtRisposta = shmdt(puntatoreSharedMemoryTuttiUtenti);
     if (shmdtRisposta == -1)
     {
@@ -828,12 +871,12 @@ int main(int argc, char const *argv[])
         perror("- shmctl idSharedMemoryIndiceLibroMastro");
         exit(EXIT_FAILURE);
     }
-    semctlRisposta = semctl(idSemaforoAccessoLibroMastro, /*ignorato*/ 0, IPC_RMID);
+    /*semctlRisposta = semctl(idSemaforoAccessoLibroMastro,0, IPC_RMID);
     if (semctlRisposta == -1)
     {
         perror("semctl idSemaforoAccessoLibroMastro");
         exit(EXIT_FAILURE);
-    }
+    }*/
     shmdtRisposta = shmdt(puntatoreSharedMemoryLibroMastro);
     if (shmdtRisposta == -1)
     {
@@ -925,6 +968,10 @@ int readAllParameters()
             {
                 SO_FRIENDS_NUM = atoi(strtok(NULL, delimeter));
             }
+            else if (strcmp(token, "SO_HOPS") == 0)
+            {
+                SO_HOPS = atoi(strtok(NULL, delimeter));
+            }
             else
             {
                 printf("Errore durante il parsing dei parametri - token %s\n", token);
@@ -965,6 +1012,7 @@ int readAllParameters()
         printf("SO_BUDGET_INIT=%d\n", SO_BUDGET_INIT);
         printf("SO_SIM_SEC=%d\n", SO_SIM_SEC);
         printf("SO_FRIENDS_NUM=%d\n", SO_FRIENDS_NUM);
+        printf("SO_HOPS=%d\n", SO_HOPS);
 #endif
 
         return 0;
@@ -989,8 +1037,8 @@ void alarmHandler(int sigNum)
         for (cont = 0; cont < SO_USERS_NUM; cont++)
         {
             if (puntatoreSharedMemoryTuttiUtenti[cont + 1].stato == USER_OK)
-            {	
-            	printf("-----------STO PER KILLARE %d----------\n",puntatoreSharedMemoryTuttiUtenti[cont + 1].userPid);
+            {
+                printf("-----------STO PER KILLARE %d----------\n", puntatoreSharedMemoryTuttiUtenti[cont + 1].userPid);
                 kill(puntatoreSharedMemoryTuttiUtenti[cont + 1].userPid, SIGUSR1);
             }
         }
@@ -1036,7 +1084,7 @@ void stampaTerminale(int flag)
     contPremat = 0;
     /*stampo bilancio utenti*/
     contatoreStampa = 0;
-    
+
     utenteMax.budget = 0;
     utenteMin.budget = SO_BUDGET_INIT;
     nodoMax.budget = 0;
@@ -1052,30 +1100,34 @@ void stampaTerminale(int flag)
                 contPremat++;
             }
         }
-    }else{
-       /* utenteMax.budget = 0;
-        utenteMin.budget = SO_BUDGET_INIT;*/
-        
+    }
+    else
+    {
+        /* utenteMax.budget = 0;
+         utenteMin.budget = SO_BUDGET_INIT;*/
+
         for (contatoreStampa; contatoreStampa < SO_USERS_NUM; contatoreStampa++)
         {
-           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget > utenteMax.budget){
-               utenteMax = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
-           }
-           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget < utenteMin.budget ){
-               utenteMin = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
-           }
-           if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
+            if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget > utenteMax.budget)
+            {
+                utenteMax = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
+            }
+            if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget < utenteMin.budget)
+            {
+                utenteMin = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
+            }
+            if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
             {
                 contPremat++;
             }
         }
-       /* if (contPremat >= SO_USERS_NUM -1){
-        	utenteMax.budget = 0;
-		    utenteMin.budget = 0;
-		    utenteMax.userPid = 0;
-		    utenteMin.userPid = 0;
-		    printf("TERMINAZIONE UTENTI\n");
-        }*/
+        /* if (contPremat >= SO_USERS_NUM -1){
+             utenteMax.budget = 0;
+             utenteMin.budget = 0;
+             utenteMax.userPid = 0;
+             utenteMin.userPid = 0;
+             printf("TERMINAZIONE UTENTI\n");
+         }*/
         printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
         printf("%09d\t%09d\t%09d <-- UTENTE con budget MAGGIORE\n", utenteMax.userPid, utenteMax.budget, utenteMax.stato);
         printf("%09d\t%09d\t%09d <-- UTENTE con budget MINORE\n", utenteMin.userPid, utenteMin.budget, utenteMin.stato);
@@ -1093,15 +1145,19 @@ void stampaTerminale(int flag)
         {
             printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].nodoPid, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].transazioniPendenti);
         }
-    }else{
+    }
+    else
+    {
         for (contatoreStampa; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
         {
-           /* nodoMax.budget = 0;
-            nodoMin.budget = SO_BUDGET_INIT;*/
-            if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget > nodoMax.budget && puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget != 0){
+            /* nodoMax.budget = 0;
+             nodoMin.budget = SO_BUDGET_INIT;*/
+            if (puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget > nodoMax.budget && puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget != 0)
+            {
                 nodoMax = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
             }
-            if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget < nodoMin.budget){
+            if (puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget < nodoMin.budget)
+            {
                 nodoMin = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
             }
         }

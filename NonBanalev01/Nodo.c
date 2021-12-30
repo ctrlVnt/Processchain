@@ -9,11 +9,14 @@ I parametri della simulazione(comuni a tutti i nodi):
 4.1 Il mio numero d'ordine(quando si vuole recupeprare il valore che effettivamente appartiene a me - faccio numeroORDINE + 1)
 5.ID SM dove si trova libro mastro
 6.ID SM dove si trova l'indice del libro mastro
-7.ID semaforo del libro mastro
+7.SO_HOPS
 8.ID semaforo dell'indice libro mastro
 9.ID semaforo Mia coda di messaggi
 10. SO_TP_SIZE1
 11. SO_BLOCK_SIZE1
+12. SO_REGISTRY_SIZE
+13. SO_FRINEDS_NUM
+14. idSharedMemoryAmiciNodi
 */
 /****************************************/
 /*STRUTTURE*/
@@ -59,6 +62,7 @@ int SO_TP_SIZE1;
 /*Le transazioni sono elaborate in blocchi, la variabile seguente determina la sua capacita', che dev'essere minore rispetto alla capacita' della transacion pool - NOTA A COMPILE TIME*/
 int SO_BLOCK_SIZE1;
 int SO_REGISTRY_SIZE;
+int SO_FRIENDS_NUM;
 /**/
 long soMinTransProcNsec;
 /**/
@@ -83,11 +87,16 @@ transazione *puntatoreSharedMemoryLibroMastro;
 int idSharedMemoryIndiceLibroMastro;
 /*Dopo l'attach, punta alla porzione di memoria condivisa dove si trova effettivamente l'indice del libro mastro*/
 int *puntatoreSharedMemoryIndiceLibroMastro;
+/*id Shared memory dove ci sono gli amici del nodo*/
+int idSharedMemoryAmiciNodi;
+/*Dopo l'attach punta alla porzione di memoria condivisa dove ci sono gli amici del nodo*/
+int *puntatoreSharedMemoryAmiciNodi;
+
 /*
 Id del semaforo che regola l'input sul libro mastro
 Il semaforo di tipo binario.
 */
-int idSemaforoAccessoLibroMastro;
+int SO_HOPS;
 /*
 Id del semaforo che regola l'accesso all'indice
 Il semaforo di tipo binario.
@@ -240,14 +249,14 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
 
-    idSemaforoAccessoLibroMastro = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[7], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
-    if (idSemaforoAccessoLibroMastro == 0 && errno == EINVAL)
+    SO_HOPS = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[7], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_HOPS == 0 && errno == EINVAL)
     {
         perror("Errore di conversione");
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    // printf("idSemaforoAccessoLibroMastro: %d\n", idSemaforoAccessoLibroMastro);
+    // printf("soHops: %d\n", SO_HOPS);
 
     idSemaforoAccessoIndiceLibroMastro = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[8], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
     if (idSemaforoAccessoIndiceLibroMastro == 0 && errno == EINVAL)
@@ -291,8 +300,32 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     #if(ENABLE_TEST)
-        printf("N SO_BLOCK_SIZE1: %d\n", SO_REGISTRY_SIZE);
+        printf("N SO_REGISTRY_SIZE: %d\n", SO_REGISTRY_SIZE);
     #endif
+    SO_FRIENDS_NUM= (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[13], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_FRIENDS_NUM == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_FRIENDS_NUM");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("N SO_FRIENDS_NUM: %d\n", SO_FRIENDS_NUM);
+    #endif
+    idSharedMemoryAmiciNodi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[14], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (idSharedMemoryAmiciNodi == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione idSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("N idSharedMemoryAmiciNodi: %d\n", idSharedMemoryAmiciNodi);
+    #endif
+    puntatoreSharedMemoryAmiciNodi = (int *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
+    if (*puntatoreSharedMemoryAmiciNodi == -1)
+    {
+        perror("shmat");
+        exit(EXIT_FAILURE);
+    }
     /*imposto l'handler*/
     sigactionSigusr1Nuova.sa_flags = 0;
     sigemptyset(&sigactionSigusr1Nuova.sa_mask);
@@ -439,7 +472,12 @@ int main(int argc, char const *argv[])
 
     /*CICLO DI VITA DEL NODO TERMINA*/
     /*Deallocazione delle risorse*/
-
+    shmdtRisposta = shmdt(puntatoreSharedMemoryAmiciNodi);
+    if (shmdtRisposta == -1)
+    {
+        perror("shmdt puntatoreSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
     shmdtRisposta = shmdt(puntatoreSharedMemoryIndiceLibroMastro);
     if (shmdtRisposta == -1)
     {

@@ -73,6 +73,8 @@ typedef struct nodo_ds
 int SO_TP_SIZE1;
 /*Le transazioni sono elaborate in blocchi, la variabile seguente determina la sua capacita', che dev'essere minore rispetto alla capacita' della transacion pool - NOTA A COMPILE TIME*/
 int SO_BLOCK_SIZE1;
+int SO_FRIENDS_NUM;
+int SO_HOPS;
 /**/
 int soRetry;
 /**/
@@ -103,6 +105,10 @@ int *puntatoreSharedMemoryIndiceLibroMastro;
 int idSharedMemoryTuttiUtenti;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente i PID degli utenti*/
 utente *puntatoreSharedMemoryTuttiUtenti;
+/*id Shared memory dove ci sono gli amici del nodo*/
+int idSharedMemoryAmiciNodi;
+/*Dopo l'attach punta alla porzione di memoria condivisa dove ci sono gli amici del nodo*/
+int *puntatoreSharedMemoryAmiciNodi;
 /*numero totale di utenti*/
 int numeroTotaleUtenti;
 /*variabile struttura per effettuare le operazioni sul semaforo*/
@@ -347,6 +353,41 @@ int main(int argc, char const *argv[])
     #if(ENABLE_TEST)
         printf("U SO_BLOCK_SIZE1: %d\n", SO_BLOCK_SIZE1);
     #endif
+    SO_FRIENDS_NUM = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[14], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);             
+    if (SO_FRIENDS_NUM == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_FRIENDS_NUM");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("U SO_FRIENDS_NUM: %d\n", SO_FRIENDS_NUM);
+    #endif
+    SO_HOPS = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[15], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);             
+    if (SO_HOPS == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione SO_HOPS");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("U SO_HOPS: %d\n", SO_HOPS);
+    #endif
+
+    idSharedMemoryAmiciNodi = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[16], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (idSharedMemoryAmiciNodi == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione idSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST)
+        printf("U idSharedMemoryAmiciNodi: %d\n", idSharedMemoryAmiciNodi);
+    #endif
+
+    puntatoreSharedMemoryAmiciNodi = (int *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
+    if (*puntatoreSharedMemoryAmiciNodi == -1)
+    {
+        perror("shmat");
+        exit(EXIT_FAILURE);
+    }
 
     /*imposto l'handler*/
     sigactionSigusr1Nuova.sa_flags = 0;
@@ -360,11 +401,11 @@ int main(int argc, char const *argv[])
     int idCoda;
     int semopRisposta;
     transazioneInvio.sender = getpid();
-    // printf("\t[%d] inizia\n", getpid());
+    printf("\t[%d] inizia\n", getpid());
     while(user == UTENTE_CONTINUE)
     {
     	
-        //printf("_______UTNTE____________\n");
+        printf("_______UTNTE____________\n");
         //printf("%d ha scelto %d e la coda ordine ID %d\n", getpid(), scegliUtenteRandom(numeroTotaleUtenti), puntatoreSharedMemoryTuttiNodi[scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid)].mqId);
         /**/
         indiceLibroMastroRiservato =  getBudgetUtente(indiceLibroMastroRiservato);
@@ -434,9 +475,14 @@ int main(int argc, char const *argv[])
     /*fine ciclo di vita utente*/
 	
 	/*"Notifico il master della mia morte"*/
-		puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].stato = USER_KO;
-		
-    //*Deallocazione delle risorse*/
+    puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].stato = USER_KO;
+    /*Deallocazione delle risorse*/
+    shmdtRisposta = shmdt(puntatoreSharedMemoryAmiciNodi);
+    if (shmdtRisposta == -1)
+    {
+        perror("shmdt puntatoreSharedMemoryAmiciNodi");
+        exit(EXIT_FAILURE);
+    }
     shmdtRisposta = shmdt(puntatoreSharedMemoryIndiceLibroMastro);
     if (shmdtRisposta == -1)
     {
