@@ -56,7 +56,6 @@ typedef struct nodo_ds
     int budget;
     /*getpid()*/
     int nodoPid;
-    int *friends;
     int transazioniPendenti;
 } nodo;
 

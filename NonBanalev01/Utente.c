@@ -405,7 +405,7 @@ int main(int argc, char const *argv[])
     while(user == UTENTE_CONTINUE)
     {
     	
-        printf("_______UTNTE____________\n");
+        /*printf("_______UTNTE____________\n");*/
         //printf("%d ha scelto %d e la coda ordine ID %d\n", getpid(), scegliUtenteRandom(numeroTotaleUtenti), puntatoreSharedMemoryTuttiNodi[scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid)].mqId);
         /**/
         indiceLibroMastroRiservato =  getBudgetUtente(indiceLibroMastroRiservato);

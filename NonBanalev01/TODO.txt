@@ -7,3 +7,6 @@ quindi l'utente sceglie casualmente un amico del pool di amici del nodo scelto p
 
 CORREZIONE FILE
 -togliere semaforo "idSemaforoAccessoLibroMastro" e modificare tutti e tre i file - V
+-gestire ctrl z e ctrl c
+
+
