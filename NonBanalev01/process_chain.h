@@ -33,7 +33,7 @@
 /*MACRO*/
 
 /*Permette di cambiare la modalita' tra DEBUG e NON-DEBUG*/
-#define ENABLE_TEST 0
+#define ENABLE_TEST 1
 /*Permette di discriminare gli utenti, 1 - utente ancora attivo*/
 #define USER_OK 1
 /*Permette di discriminare gli utenti, 0 - utente non e' attivo*/

@@ -15,5 +15,6 @@ MASTER
 			}
 		}
 	3)Faccio partire i nodi
+	4)coda di messaggi master
 
 
