@@ -198,6 +198,7 @@ char intToStrBuff[32];
 char parametriPerUtente[14][32];
 
 
+
 /**************************************************************************/
 
 /*******************/
@@ -332,10 +333,7 @@ int main(int argc, char const *argv[])
 #endif
 
     /*FINE Inizializzazione INDICE LIBRO MASTRO*/
-
-    /*INIZIO Inizializzazione SM che contiene gli ID delle code di messaggi, ciascuna associata a un determinato NODO*/
-    /*array nodi privato*/
-   
+    
     /*SM*/
     /*REMINDER x2, prima cella di questa SM indica il NUMERO totale di CODE presenti, quindi rispecchia anche il numero dei nodi presenti*/
     idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (2 * SO_NODES_NUM + 1), 0600 | IPC_CREAT);
@@ -721,25 +719,17 @@ int main(int argc, char const *argv[])
         /**/
         /*verifico se qualcuno ha cambiato lo stato senza attendere*/
         int a = 0;
-        if ((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != -1)
+        while((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != 0)
         {
             if (WIFEXITED(childStatus))
             {
-                /*se lo status e' EXIT_PREMAT*/
-                /*if (WEXITSTATUS(childStatus) == EXIT_PREMAT)*/
-               /* {*/
-                /*faccio notrare a tutti che il numero degli utenti si e' diminuito*/
-                for(a = 1; a <= SO_USERS_NUM; a++)
-                {
-                    if(puntatoreSharedMemoryTuttiUtenti[a].userPid == childPidWait)
-                    {
-                        puntatoreSharedMemoryTuttiUtenti[a].stato = USER_KO;
-                        puntatoreSharedMemoryTuttiUtenti[0].userPid--;/*^*/
-                    }
-                    /*prima era qui*/
-                }
+                puntatoreSharedMemoryTuttiUtenti[0].userPid--;
                 /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
-                if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= 1)
+               /* }*/
+            }
+        }
+        
+        if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= 1)
                 {
                     /*COME SE ALLARME SCATASSE*/
                     // stampaTerminale(1);
@@ -747,13 +737,10 @@ int main(int argc, char const *argv[])
                     master = MASTER_STOP;
                     motivoTerminazione = NO_UTENTI_VIVI;
                 }
-               /* }*/
-            }
-        }
     }
 
     /***********************************/
-    /*Prima di chiudere le risorse... Attendo i figli hehehe*/
+    /*Prima di chiudere le risorse... Attendo i figli(nodo e figli rimasti) hehehe*/
     while ((childPidWait = waitpid(-1, &childStatus, 0)) != -1)
     {
         printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));
@@ -1048,6 +1035,11 @@ void stampaTerminale(int flag)
     contPremat = 0;
     /*stampo bilancio utenti*/
     contatoreStampa = 0;
+    
+    utenteMax.budget = 0;
+    utenteMin.budget = SO_BUDGET_INIT;
+    nodoMax.budget = 0;
+    nodoMin.budget = SO_BUDGET_INIT;
     if (SO_USERS_NUM < 20)
     {
         printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
@@ -1060,14 +1052,15 @@ void stampaTerminale(int flag)
             }
         }
     }else{
-        utenteMax.budget = 0;
-        utenteMin.budget = SO_BUDGET_INIT;
+       /* utenteMax.budget = 0;
+        utenteMin.budget = SO_BUDGET_INIT;*/
+        
         for (contatoreStampa; contatoreStampa < SO_USERS_NUM; contatoreStampa++)
         {
-           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget > utenteMax.budget && puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato != USER_KO){
+           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget > utenteMax.budget){
                utenteMax = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
            }
-           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget < utenteMin.budget && puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato != USER_KO){
+           if(puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].budget < utenteMin.budget ){
                utenteMin = puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1];
            }
            if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
@@ -1075,6 +1068,13 @@ void stampaTerminale(int flag)
                 contPremat++;
             }
         }
+       /* if (contPremat >= SO_USERS_NUM -1){
+        	utenteMax.budget = 0;
+		    utenteMin.budget = 0;
+		    utenteMax.userPid = 0;
+		    utenteMin.userPid = 0;
+		    printf("TERMINAZIONE UTENTI\n");
+        }*/
         printf("UTENTE[PID] | BILANCIO[INT] | STATO\n");
         printf("%09d\t%09d\t%09d <-- UTENTE con budget MAGGIORE\n", utenteMax.userPid, utenteMax.budget, utenteMax.stato);
         printf("%09d\t%09d\t%09d <-- UTENTE con budget MINORE\n", utenteMin.userPid, utenteMin.budget, utenteMin.stato);
@@ -1095,8 +1095,8 @@ void stampaTerminale(int flag)
     }else{
         for (contatoreStampa; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
         {
-            nodoMax.budget = 0;
-            nodoMin.budget = SO_BUDGET_INIT;
+           /* nodoMax.budget = 0;
+            nodoMin.budget = SO_BUDGET_INIT;*/
             if(puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget > nodoMax.budget && puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget != 0){
                 nodoMax = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1];
             }

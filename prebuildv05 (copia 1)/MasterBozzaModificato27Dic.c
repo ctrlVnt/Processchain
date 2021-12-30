@@ -1,6 +1,62 @@
-#include "process_chain.h"
+/*LIBRERIE*/
+/*portabilita' piu' compatibilita'*/
+#define _GNU_SOURCE
+/*input/output*/
+#include <stdio.h>
+/*effettuare exit()*/
+#include <stdlib.h>
+/*prelevare valore errno*/
+#include <errno.h>
+/*operazioni stringhe*/
+#include <string.h>
+/*per gestire i segnali*/
+#include <signal.h>
+/*per compatiblità*/
+#include <sys/types.h>
+/*recuperare i flag delle strutture system V*/
+#include <sys/ipc.h>
+/*memoria condivisa*/
+#include <sys/shm.h>
+/*operazione sui semafori*/
+#include <sys/sem.h>
+/*operazione sulle code di messaggi*/
+#include <sys/msg.h>
+/*gestire la wait*/
+#include <sys/wait.h>
+/*per getpid() etc*/
+#include <unistd.h>
+/*libreria per clock_gettime*/
+#include <time.h>
+/*per recuperare il limite delle variabili*/
+#include <limits.h>
 
 /**********/
+
+/*MACRO*/
+
+/*Permette di cambiare la modalita' tra DEBUG e NON-DEBUG*/
+#define ENABLE_TEST 1
+/*Permette di discriminare gli utenti, 1 - utente ancora attivo*/
+#define USER_OK 1
+/*Permette di discriminare gli utenti, 0 - utente non e' attivo*/
+#define USER_KO 0
+/*Motivi di pura portabilita', permette facilmente impostare campo reward della transazione inerente al NODO*/
+#define REWARD_SENDER -1
+/*
+Utilizzata nel ciclo d'attesa di terminazione degli utenti.
+Se un utente termina prematuramente, questo e' il suo valore di ritorno.
+*/
+#define EXIT_PREMAT 2
+/*Utilizzata per far andare o meno il processo master*/
+#define MASTER_CONTINUE 1
+#define MASTER_STOP 0
+/*ragione della teminazione*/
+#define ALLARME_SCATTATO 0
+#define NO_UTENTI_VIVI 1
+#define REGISTRY_FULL 2
+#define TERMINATO_DA_UTENTE 3
+/*******/
+
 /*STRUTTURE*/
 
 /*inviata dal processo utente a uno dei processi nodo che la gestisce*/
@@ -93,6 +149,9 @@ int SO_FRIENDS_NUM;
 /****************************/
 
 /*PARAMETRI LETTI A COMPILE TIME*/
+
+int SO_BLOCK_SIZE;
+int SO_TP_SIZE;
 
 /********************************/
 
@@ -193,10 +252,11 @@ int motivoTerminazione;
 
 /*Variabili necessari per poter avviare i nodi, successivamente gli utenti*/
 
-char parametriPerNodo[13][32];
+char parametriPerNodo[12][32];
 char intToStrBuff[32];
 char parametriPerUtente[14][32];
-
+/*QUESTO UTILIZZIAMO PER NOTIFICARE I NOSTRI CARISSIMI PROCESSI NODI*/
+int *arrayPidProcessiNodi;
 
 /**************************************************************************/
 
@@ -240,7 +300,9 @@ int main(int argc, char const *argv[])
     /*Inizializzazione LIBRO MASTRO*/
 
     /*SM*/
-    idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE *SO_BLOCK_SIZE*sizeof(transazione), 0600 | IPC_CREAT);
+    SO_BLOCK_SIZE = 10;
+    SO_TP_SIZE = 100;
+    idSharedMemoryLibroMastro = shmget(IPC_PRIVATE, SO_REGISTRY_SIZE * SO_BLOCK_SIZE * sizeof(transazione), 0600 | IPC_CREAT);
     if (idSharedMemoryLibroMastro == -1)
     {
         perror("- shmget idSharedMemoryLibroMastro");
@@ -335,7 +397,12 @@ int main(int argc, char const *argv[])
 
     /*INIZIO Inizializzazione SM che contiene gli ID delle code di messaggi, ciascuna associata a un determinato NODO*/
     /*array nodi privato*/
-   
+    arrayPidProcessiNodi = (int *)calloc(2 * SO_NODES_NUM, sizeof(int));
+    if (arrayPidProcessiNodi == NULL)
+    {
+        perror("calloc arrayPidProcessiNodi");
+        exit(EXIT_FAILURE);
+    }
     /*SM*/
     /*REMINDER x2, prima cella di questa SM indica il NUMERO totale di CODE presenti, quindi rispecchia anche il numero dei nodi presenti*/
     idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (2 * SO_NODES_NUM + 1), 0600 | IPC_CREAT);
@@ -496,7 +563,7 @@ int main(int argc, char const *argv[])
 
             /*INIZIO Costruire la lista di parametri*/
 
-            strcpy(parametriPerNodo[0], "NodoBozza.out");
+            strcpy(parametriPerNodo[0], "NodoBozza");
             sprintf(intToStrBuff, "%ld", SO_MIN_TRANS_PROC_NSEC);
             strcpy(parametriPerNodo[1], intToStrBuff);
             sprintf(intToStrBuff, "%ld", SO_MAX_TRANS_PROC_NSEC);
@@ -519,14 +586,12 @@ int main(int argc, char const *argv[])
             strcpy(parametriPerNodo[10], intToStrBuff);
             sprintf(intToStrBuff, "%d", SO_BLOCK_SIZE);
             strcpy(parametriPerNodo[11], intToStrBuff);
-            sprintf(intToStrBuff, "%d", SO_REGISTRY_SIZE);
-            strcpy(parametriPerNodo[12], intToStrBuff);
 
             /*FINE Lista*/
 
             // printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./NodoBozza.out", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], parametriPerNodo[10], parametriPerNodo[11], parametriPerNodo[12], NULL);
+            execRisposta = execlp("./NodoBozza", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], parametriPerNodo[10], parametriPerNodo[11], NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
@@ -620,7 +685,7 @@ int main(int argc, char const *argv[])
             /***********************************************/
 
             /*INIZIO Costruire la lista di parametri*/
-            strcpy(parametriPerUtente[0], "UtenteBozza.out");
+            strcpy(parametriPerUtente[0], "UtenteBozza");
             sprintf(intToStrBuff, "%ld", SO_MIN_TRANS_GEN_NSEC);
             strcpy(parametriPerUtente[1], intToStrBuff);
             sprintf(intToStrBuff, "%ld", SO_MAX_TRANS_GEN_NSEC);
@@ -650,7 +715,7 @@ int main(int argc, char const *argv[])
 
             // printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./UtenteBozza.out", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], parametriPerUtente[11], parametriPerUtente[12], parametriPerUtente[13], NULL);
+            execRisposta = execlp("./UtenteBozza", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], parametriPerUtente[11], parametriPerUtente[12], parametriPerUtente[13], NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
@@ -662,7 +727,6 @@ int main(int argc, char const *argv[])
             puntatoreSharedMemoryTuttiUtenti[i + 1].userPid = childPid;
             puntatoreSharedMemoryTuttiUtenti[i + 1].stato = USER_OK;
             puntatoreSharedMemoryTuttiUtenti[i + 1].budget = SO_BUDGET_INIT;
-            /**/
 #if (ENABLE_TEST)
             // printf("+ %d UTENTE[%d] registrato correttamente\n", i, childPid);
 #endif
@@ -702,7 +766,10 @@ int main(int argc, char const *argv[])
     /*FINE Impostazione sigaction per ALARM*/
 
     /*CICLO DI VITA DEL PROCESSO MASTER*/
-
+	
+	/*contatore utenti vivi*/
+	int contatoreUtentiVivi = SO_USERS_NUM;
+	
     master = MASTER_CONTINUE;
     while (master)
     {
@@ -721,25 +788,30 @@ int main(int argc, char const *argv[])
         /**/
         /*verifico se qualcuno ha cambiato lo stato senza attendere*/
         int a = 0;
-        if ((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != -1)
+     /*   while((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != 0)
         {
             if (WIFEXITED(childStatus))
             {
+            	contatoreUtentiVivi--;*/
                 /*se lo status e' EXIT_PREMAT*/
                 /*if (WEXITSTATUS(childStatus) == EXIT_PREMAT)*/
                /* {*/
                 /*faccio notrare a tutti che il numero degli utenti si e' diminuito*/
-                for(a = 1; a <= SO_USERS_NUM; a++)
+               /* for(a = 1; a <= SO_USERS_NUM; a++)
                 {
                     if(puntatoreSharedMemoryTuttiUtenti[a].userPid == childPidWait)
                     {
                         puntatoreSharedMemoryTuttiUtenti[a].stato = USER_KO;
                         puntatoreSharedMemoryTuttiUtenti[0].userPid--;/*^*/
-                    }
+                   /* }*/
                     /*prima era qui*/
-                }
+               /* }*/
                 /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
-                if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= 1)
+               /* }*/
+               
+        /*    }
+      / }*/
+        if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= 1)
                 {
                     /*COME SE ALLARME SCATASSE*/
                     // stampaTerminale(1);
@@ -747,33 +819,29 @@ int main(int argc, char const *argv[])
                     master = MASTER_STOP;
                     motivoTerminazione = NO_UTENTI_VIVI;
                 }
-               /* }*/
-            }
-        }
     }
 
     /***********************************/
     /*Prima di chiudere le risorse... Attendo i figli hehehe*/
-    while ((childPidWait = waitpid(-1, &childStatus, 0)) != -1)
+  /*  while ((childPidWait = waitpid(-1, &childStatus, 0)) != -1)
     {
-        printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));
-    }
+        // printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));
+    }*/
     /********************************************************/
     /*STAMPO CON MOTIVO DELLA TERMINAZIONE - flag = 1*/
     stampaTerminale(1);
     /**********************************/
     /*void stampaLibroMastro()
 /*{*/
- /*   printf("RECEIVER(PID)|SENDER(PID)|QUANTITA|SEC_ELAPSED\n");
+    printf("RECEIVER(PID)|SENDER(PID)|QUANTITA|SEC_ELAPSED\n");
     for(int i = 0; i < *puntatoreSharedMemoryIndiceLibroMastro; i++)
     {
-        for(int j = 0; j < SO_BLOCK_SIZE; j++)
+      /*  for(int j = 0; j < SO_BLOCK_SIZE; j++)
         {
-            printf("|%010d||%010d||%010d||%s\n", puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].receiver, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].sender, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].quantita, ctime(&puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].timestamp.tv_sec));
+            printf("|%010d|\t",  puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].quantita);
         }
-        printf("\n");
-    }*/
-    printf("Indice: %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
+        printf("\n");*/
+    }
 /*}*/
     /*Chiusura delle risorse*/
     shmdtRisposta = shmdt(puntatoreSharedMemoryTuttiUtenti);

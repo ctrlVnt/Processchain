@@ -423,7 +423,10 @@ int main(int argc, char const *argv[])
     }
 
     /*fine ciclo di vita utente*/
-
+	
+	/*"Notifico il master della mia morte"*/
+		puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].stato = USER_KO;
+		
     //*Deallocazione delle risorse*/
     shmdtRisposta = shmdt(puntatoreSharedMemoryIndiceLibroMastro);
     if (shmdtRisposta == -1)

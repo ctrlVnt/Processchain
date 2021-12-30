@@ -1,4 +1,31 @@
-#include "process_chain.h"
+#define _GNU_SOURCE
+#include <stdio.h>  /*input/output*/
+#include <stdlib.h> /*effettuare exit()*/
+#include <errno.h>  /*prelevare valore errno*/
+#include <string.h> /*operazioni stringhe*/
+#include <signal.h> /*per gestire i segnali*/
+
+#include <sys/shm.h>   /*memoria condivisa*/
+#include <sys/ipc.h>   /*recuperare i flag delle strutture system V*/
+#include <sys/types.h> /*per compatiblità*/
+#include <sys/sem.h>   /*operazione sui semafori*/
+#include <sys/msg.h>   /*operazione sulle code di messaggi*/
+#include <sys/wait.h>  /*gestire la wait*/
+
+#include <unistd.h> /*per getpid() etc*/
+#include <time.h>   /*libreria per clock_gettime*/
+#include <limits.h> /*per recuperare il limite delle variabili*/
+
+/*MACRO*/
+#define IS_LONG 1
+#define IS_INT 0
+#define UTENTE_CONTINUE 1
+#define UTENTE_STOP 0
+#define USER_OK 1
+#define USER_KO 0
+#define EXIT_PREMAT 2
+#define ENABLE_TEST 1
+
 /*Proposta lista argomenti ricevuto dalla EXECLP*/
 /*
 I parametri della simulazione(comuni a tutti gli utenti):
@@ -14,8 +41,8 @@ I parametri della simulazione(comuni a tutti gli utenti):
 9.ID semaforo per accedere alla coda di mex
 10. ID semaforo accesso libro mastro
 11. SO_REWARD
-12. SO_TP_SIZE1
-13. SO_BLOCK_SIZE1
+12. SO_TP_SIZE
+13. SO_BLOCK_SIZE
 */
 /****************************************/
 
@@ -70,9 +97,9 @@ typedef struct nodo_ds
 
 /*VARIABILI GLOBALI*/
 /*La capacita' della transaction pool associata a ciascun nodo per immagazzinare le transazioni da elaborare - NOTA A COMPILE TIME*/
-int SO_TP_SIZE1;
+int SO_TP_SIZE;
 /*Le transazioni sono elaborate in blocchi, la variabile seguente determina la sua capacita', che dev'essere minore rispetto alla capacita' della transacion pool - NOTA A COMPILE TIME*/
-int SO_BLOCK_SIZE1;
+int SO_BLOCK_SIZE;
 /**/
 int soRetry;
 /**/
@@ -153,8 +180,8 @@ int main(int argc, char const *argv[])
 {
     printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
-    SO_TP_SIZE1 = 10;
-    SO_BLOCK_SIZE1 = 7;
+    SO_TP_SIZE = 0;
+    SO_BLOCK_SIZE = 0;
     indiceLibroMastroRiservato = 0;
 
     soMinTransGenNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[1], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -329,23 +356,23 @@ int main(int argc, char const *argv[])
     #if(ENABLE_TEST)
         printf("\t U SO_REWARD: %d\n", SO_REWARD);
     #endif
-    SO_TP_SIZE1 = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[12], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
-    if (SO_TP_SIZE1 == 0 && errno == EINVAL)
+    SO_TP_SIZE = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[12], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_TP_SIZE == 0 && errno == EINVAL)
     {
-        perror("Errore di conversione SO_TP_SIZE1");
+        perror("Errore di conversione SO_TP_SIZE");
         exit(EXIT_FAILURE);
     }
     #if(ENABLE_TEST)
-        printf("\t U SO_TP_SIZE1: %d\n", SO_TP_SIZE1);
+        printf("\t U SO_TP_SIZE: %d\n", SO_TP_SIZE);
     #endif
-    SO_BLOCK_SIZE1 = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[13], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);             
-    if (SO_BLOCK_SIZE1 == 0 && errno == EINVAL)
+    SO_BLOCK_SIZE = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[13], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (SO_BLOCK_SIZE == 0 && errno == EINVAL)
     {
-        perror("Errore di conversione SO_BLOCK_SIZE1");
+        perror("Errore di conversione SO_BLOCK_SIZE");
         exit(EXIT_FAILURE);
     }
     #if(ENABLE_TEST)
-        printf("U SO_BLOCK_SIZE1: %d\n", SO_BLOCK_SIZE1);
+        printf("U SO_BLOCK_SIZE: %d\n", SO_BLOCK_SIZE);
     #endif
 
     /*imposto l'handler*/
@@ -378,15 +405,15 @@ int main(int argc, char const *argv[])
             operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
             operazioniSemaforo.sem_op = -1;
             semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
-            if(semopRisposta == -1 && errno == EAGAIN)
+            if(errno == EAGAIN && semopRisposta == -1)
             {
-                // printf("occupata %d\n", semopRisposta);
+                /*printf("occupata %d\n", semopRisposta);*/
                 soRetry--;
                 attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
             }
             else{
                 // printf("[%d] ho abbastanza budget %d\n", getpid(), puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
-                q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget) / 5 + 2;
+                q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
                 transazioneInvio.reward = (q * SO_REWARD)/100;
                 if(transazioneInvio.reward == 0)
                 {
@@ -394,7 +421,7 @@ int main(int argc, char const *argv[])
                 }
                 transazioneInvio.quantita = q - transazioneInvio.reward;
                 
-                clock_gettime(CLOCK_REALTIME, &transazioneInvio.timestamp);
+                clock_gettime(CLOCK_BOOTTIME, &transazioneInvio.timestamp);
                 messaggio.mtype = getpid();
                 messaggio.transazione = transazioneInvio;
                 msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione), 0);
@@ -421,6 +448,9 @@ int main(int argc, char const *argv[])
             user = UTENTE_STOP;
         }
     }
+     /*notifico la mia morte*/
+     puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].stato = USER_KO;
+     puntatoreSharedMemoryTuttiUtenti[0].userPid--;
 
     /*fine ciclo di vita utente*/
 
@@ -513,11 +543,11 @@ int getBudgetUtente(int indiceLibroMastroRiservato)
 
     for(indiceLibroMastroRiservato; indiceLibroMastroRiservato < ultimoIndice; indiceLibroMastroRiservato++)
     {
-        for(c = 0; c < SO_BLOCK_SIZE1 - 1; c++)
+        for(c = 0; c < SO_BLOCK_SIZE - 1; c++)
         {
-            if(puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE1 + c].receiver == getpid())
+            if(puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE + c].receiver == getpid())
             {
-                puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget += puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE1 + c].quantita;
+                puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget += puntatoreSharedMemoryLibroMastro[indiceLibroMastroRiservato*SO_BLOCK_SIZE + c].quantita;
             }
         }
     }
