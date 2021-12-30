@@ -369,7 +369,13 @@ int main(int argc, char const *argv[])
         while (tpPiena < SO_TP_SIZE1 && node == NODO_CONTINUE && riempimentoTpStop)
         {
             msgrcvRisposta = msgrcv(puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0, IPC_NOWAIT);
-            /*TEST*/
+
+            /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI
+             if(invioAdAmico == 1){
+                msgsend();
+                invioAdAmico == 0;
+             }*/
+
             // printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, msgrcvRisposta);
             if(errno != EAGAIN && msgrcvRisposta != -1){
                 tpPiena++;
@@ -468,6 +474,9 @@ int main(int argc, char const *argv[])
         // printf("Nuovo ciclo\n");
         /*aggiorno bilancio del nodo*/
         aggiornaBilancioNodo(indiceLibroMastroRiservato);
+
+        /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI, RIMETTO A ZERO
+          invioAdAmico = 1;*/
     }
 
     /*****************************************/

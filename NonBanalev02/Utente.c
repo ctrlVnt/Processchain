@@ -407,11 +407,7 @@ int main(int argc, char const *argv[])
     while(user == UTENTE_CONTINUE)
     {
     	
-<<<<<<< HEAD
-        /*printf("_______UTNTE____________\n");*/
-=======
         // printf("_______UTNTE____________\n");
->>>>>>> 30c764cbfeefc816360589dc484e8f315dd71606
         //printf("%d ha scelto %d e la coda ordine ID %d\n", getpid(), scegliUtenteRandom(numeroTotaleUtenti), puntatoreSharedMemoryTuttiNodi[scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid)].mqId);
         /**/
         indiceLibroMastroRiservato =  getBudgetUtente(indiceLibroMastroRiservato);

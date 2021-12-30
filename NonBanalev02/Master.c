@@ -57,10 +57,7 @@ typedef struct nodo_ds
     int budget;
     /*getpid()*/
     int nodoPid;
-<<<<<<< HEAD
-=======
     //int *friends;
->>>>>>> 30c764cbfeefc816360589dc484e8f315dd71606
     int transazioniPendenti;
 } nodo;
 
