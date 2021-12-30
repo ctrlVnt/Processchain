@@ -934,7 +934,7 @@ int readAllParameters()
     char *token;
     char *delimeter = "= ";
     int parsedValue;
-    FILE *configFile = fopen("parameters.txt", "r+");
+    FILE *configFile = fopen("parameters.conf", "r+");
     int closeResponse;
 
     bzero(buffer, 256);
