@@ -408,6 +408,8 @@ int main(int argc, char const *argv[])
             // printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, msgrcvRisposta);
              /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI*/
              /*modifica cosmo*/
+             /*introdotto la variabile prima transazione ricevuta che per correttezza fa si che la transazione
+             che il master invia al nodo dopo averlo creato non venga inviata subito ad altri come avveniva prima*/
             if(primaTransazioneRicevuta == 0){
 		        	if(invioAdAmico == 1 && msgrcvRisposta != -1){
 		            messaggioInviato.mtype = 5;
