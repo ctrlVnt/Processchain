@@ -21,7 +21,7 @@ I parametri della simulazione(comuni a tutti gli utenti):
 
 /*STRUTTURE*/
 
-/*inviata dFal processo utente a uno dei processi nodo che la gestisce*/
+/*inviata dal processo utente a uno dei processi nodo che la gestisce*/
 typedef struct transazione_ds
 {
     /*tempo transazione*/
