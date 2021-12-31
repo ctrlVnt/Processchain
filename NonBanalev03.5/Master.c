@@ -590,7 +590,7 @@ int main(int argc, char const *argv[])
             if(nextFriend == SO_NODES_NUM){
                 nextFriend = 0;
             }
-            puntatoreSharedMemoryAmiciNodi[(i-1) * SO_FRIENDS_NUM + j] = puntatoreSharedMemoryTuttiNodi[nextFriend + 1].nodoPid;
+            puntatoreSharedMemoryAmiciNodi[(i-1) * SO_FRIENDS_NUM + j] = nextFriend + 1;
 #if(ENABLE_TEST)
             printf("[%d]",puntatoreSharedMemoryAmiciNodi[(i-1) * SO_FRIENDS_NUM + j]);
 #endif

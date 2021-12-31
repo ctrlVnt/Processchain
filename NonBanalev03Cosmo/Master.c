@@ -50,7 +50,7 @@ typedef struct utente_ds
 
 /*struttura che tiene traccia dello stato dell'utente*/
 typedef struct nodo_ds
-{
+{   
     /*id della sua coda di messaggi*/
     int mqId;
     /*Proposta di RICCARDO*/
@@ -125,7 +125,8 @@ int *puntatoreSharedMemoryIndiceLibroMastro;
 nodo *puntatoreSharedMemoryTuttiNodi;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente i PID degli utenti*/
 utente *puntatoreSharedMemoryTuttiUtenti;
-/*Dopo l'attach punta alla porzione di memroia dove si trovano gli amici del nodo*/
+/*Dopo l'attach punta alla porzione di memroia dove si trovano gli amici del nodo -> l'array in questione è un array di indici che si riferiscono
+  alle code di messaggi dei nodi*/
 int *puntatoreSharedMemoryAmiciNodi;
 
 /*************/
@@ -204,7 +205,7 @@ int idCodaMessaggiProcessoMaster;
 
 /*Variabili necessari per poter avviare i nodi, successivamente gli utenti*/
 
-char parametriPerNodo[15][32];
+char parametriPerNodo[16][32];
 char intToStrBuff[32];
 char parametriPerUtente[17][32];
 
@@ -398,7 +399,7 @@ int main(int argc, char const *argv[])
     printf("+ registrazione tutteCodeMessaggi avvenuta con successo, totale code %d\n", numeroNodi);
 #endif
 
-    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, SO_NODES_NUM * SO_FRIENDS_NUM * sizeof(int), 0600 | IPC_CREAT);
+    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, SO_NODES_NUM * SO_FRIENDS_NUM * sizeof(nodo), 0600 | IPC_CREAT);
     if (idSharedMemoryAmiciNodi == -1)
     {
         perror("shmget idSharedMemoryAmiciNodi");
@@ -590,7 +591,7 @@ int main(int argc, char const *argv[])
             if(nextFriend == SO_NODES_NUM){
                 nextFriend = 0;
             }
-            puntatoreSharedMemoryAmiciNodi[(i-1) * SO_FRIENDS_NUM + j] = puntatoreSharedMemoryTuttiNodi[nextFriend + 1].nodoPid;
+            puntatoreSharedMemoryAmiciNodi[(i-1) * SO_FRIENDS_NUM + j] = nextFriend + 1;
 #if(ENABLE_TEST)
             printf("[%d]",puntatoreSharedMemoryAmiciNodi[(i-1) * SO_FRIENDS_NUM + j]);
 #endif
