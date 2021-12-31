@@ -869,6 +869,8 @@ int main(int argc, char const *argv[])
                         operazioniSemaforo.sem_num = puntatoreSharedMemoryTuttiNodi[0].nodoPid-1;
                         operazioniSemaforo.sem_op = -1;
                         semopRisposta = semop(idSemaforoAccessoNodoCodaMessaggi, &operazioniSemaforo, 1);
+                        
+                        messaggioRicevuto.mtype = 6;
                         msgsnd(puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0);
                     break;
                 }
@@ -1346,7 +1348,8 @@ void stampaLibroMastro(){
 void assegnoAmici(int mioOrdine){
      
 #if(ENABLE_TEST == 0)
-    printf("Nodo [%d] con amici:\n",mioOrdine);
+/*stampo l'ultimo nodo creato e i suoi nuovi amici*/
+    printf("Nodo [%d][%d] con amici:\n",mioOrdine, puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].nodoPid);
 #endif
     for(j = 0; j < SO_FRIENDS_NUM; j++){ 
         amico++;

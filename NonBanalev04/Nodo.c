@@ -142,6 +142,7 @@ int amicoScelto;
 int msgsndRisposta;
 message messaggioInviato;
 int transRicevuteDaAmici;
+int primaTransazioneRicevuta;
 /*fine modifica cosmo*/
 /*indice ausiliario*/
 int i;
@@ -389,6 +390,7 @@ int main(int argc, char const *argv[])
     /*modifica cosmo*/
     invioAdAmico = 1;
     transRicevuteDaAmici = 0;
+    primaTransazioneRicevuta = 1;
 
     while (node)
     {
@@ -396,6 +398,7 @@ int main(int argc, char const *argv[])
         {
             msgrcvRisposta = msgrcv(puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0, IPC_NOWAIT);
 
+		
             /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI
              if(invioAdAmico == 1){
                 msgsend();
@@ -405,45 +408,55 @@ int main(int argc, char const *argv[])
             // printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, msgrcvRisposta);
              /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI*/
              /*modifica cosmo*/
-            if(invioAdAmico == 1 && msgrcvRisposta != -1){
-                messaggioInviato.mtype = 5;
-                messaggioInviato.transazione = messaggioRicevuto.transazione;
-                messaggioInviato.hops = SO_HOPS;
+            if(primaTransazioneRicevuta == 0){
+		        	if(invioAdAmico == 1 && msgrcvRisposta != -1){
+		            messaggioInviato.mtype = 5;
+		            messaggioInviato.transazione = messaggioRicevuto.transazione;
+		            messaggioInviato.hops = SO_HOPS;
 
-                errno = 0;
-                idCoda = puntatoreSharedMemoryAmiciNodi[numeroOrdine * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
-                do{
-                    operazioniSemaforo.sem_flg = IPC_NOWAIT;
-                    operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
-                    operazioniSemaforo.sem_op = -1;
-                    semopRisposta = semop(idSemaforoAccessoMiaCodaMessaggi, &operazioniSemaforo, 1);
-                    if(semopRisposta == -1 && errno == EAGAIN)
-                    {   
-                        printf("--------------errore soHops[%d]------------------\n",getpid());
-                        messaggioInviato.hops--;
-                        if(messaggioInviato.hops == 0){
-                            msgsndRisposta = msgsnd(idCodaMsgMaster, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
-                            errno = 0;
-                            printf("----------------soHops == 0-------------\n");
-                        }
-                        idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
-                    }else{
-                        msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
-                    }
-                }while(semopRisposta == -1 && errno == EAGAIN);
+		            errno = 0;
+		            idCoda = puntatoreSharedMemoryAmiciNodi[numeroOrdine * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+		            do{
+		                operazioniSemaforo.sem_flg = IPC_NOWAIT;
+		                operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
+		                operazioniSemaforo.sem_op = -1;
+		                semopRisposta = semop(idSemaforoAccessoMiaCodaMessaggi, &operazioniSemaforo, 1);
+		                if(semopRisposta == -1 && errno == EAGAIN)
+		                {   
+		                    printf("--------------errore soHops[%d]------------------\n",getpid());
+		                    messaggioInviato.hops--;
+		                    if(messaggioInviato.hops == 0){
+		                        msgsndRisposta = msgsnd(idCodaMsgMaster, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
+		                        errno = 0;
+		                        printf("----------------soHops == 0-------------\n");
+		                    }
+		                    idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+		                }else{
+		                    msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
+		        
+		                }
+		            }while(semopRisposta == -1 && errno == EAGAIN);
 
-                /*rilascio transazione consumata*/
-                operazioniSemaforo.sem_flg = 0;
-                operazioniSemaforo.sem_num = numeroOrdine;
-                operazioniSemaforo.sem_op = 1;
-                semopRisposta = semop(idSemaforoAccessoMiaCodaMessaggi, &operazioniSemaforo, 1);
+		            /*rilascio transazione consumata*/
+		            operazioniSemaforo.sem_flg = 0;
+		            operazioniSemaforo.sem_num = numeroOrdine;
+		            operazioniSemaforo.sem_op = 1;
+		            semopRisposta = semop(idSemaforoAccessoMiaCodaMessaggi, &operazioniSemaforo, 1);
 
-                invioAdAmico = 0;
-                /*torno all'inizio del ciclo while visto che ho consumato la prima transazione del ciclo di riempimento*/
-                continue;
-            }
+		            invioAdAmico = 0;
+		            /*torno all'inizio del ciclo while visto che ho consumato la prima transazione del ciclo di riempimento*/
+		            continue;
+		        }
+            } 
+            
             
             if(errno != EAGAIN && msgrcvRisposta != -1){
+            	primaTransazioneRicevuta = 0;
+            	#if(ENABLE_TEST == 0)
+		        	if(messaggioRicevuto.mtype == 6){
+		        		printf("Io nodo %d ho ricevuto la transazione che ha causato la mia creazione\n", getpid());
+		        	}
+		        #endif
                 tpPiena++;
                 bloccoRiempibile++;
                 transactionPool[(indiceSuccessivoTransactionPool++)] = messaggioRicevuto.transazione;
