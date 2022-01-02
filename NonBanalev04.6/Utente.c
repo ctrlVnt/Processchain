@@ -117,7 +117,8 @@ int numeroTotaleUtenti;
 struct sembuf operazioniSemaforo;
 /*variabile determina ciclo di vita dell'utente*/
 int user;
-
+/*coda di messaggi del master*/
+int idCodaMsgMaster;
 /*******************/
 
 /*variabili strutture per gestire i segnali*/
@@ -391,6 +392,16 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
 
+    idCodaMsgMaster = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[17], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
+    if (idCodaMsgMaster == 0 && errno == EINVAL)
+    {
+        perror("Errore di conversione idCodaMsgMaster");
+        exit(EXIT_FAILURE);
+    }
+    #if(ENABLE_TEST == 1)
+        printf("U idCodaMsgMaster: %d\n", idCodaMsgMaster);
+    #endif
+
     /*imposto l'handler*/
     sigactionSigusr1Nuova.sa_flags = 0;
     sigemptyset(&sigactionSigusr1Nuova.sa_mask);
@@ -419,25 +430,8 @@ int main(int argc, char const *argv[])
         idCoda = scegliNumeroCoda(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
         // printf("\nID CODA SCELTO: %d\n", puntatoreSharedMemoryTuttiNodi[idCoda].mqId);
         if(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget >= 2)
-        {
-            /*tentativo riservare un posto nella coda*/
-            operazioniSemaforo.sem_flg = IPC_NOWAIT;
-            operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
-            operazioniSemaforo.sem_op = -1;
-            semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
-            if(semopRisposta == -1 && errno == EAGAIN)
-            {
-                // printf("occupata %d\n", semopRisposta);
-                /*ESTRAIAMO UN AMICO DEL NODO CHE HA IL SEMAFORO PIENO
-                      CERCHIAIMO DI INVIARE A LUI E RIPETIAMO*/
-              //  printf("--------------Estraggo amico a cui inviare transazione----------------\n");
-                messaggio.hops--;
-                attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
-                
-            }
-            else{
-                // printf("[%d] ho abbastanza budget %d\n", getpid(), puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
-                q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget) ;
+        {   
+             q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget) ;
                 transazioneInvio.reward = (q * SO_REWARD)/100;
                 if(transazioneInvio.reward == 0)
                 {
@@ -449,6 +443,43 @@ int main(int argc, char const *argv[])
                 messaggio.mtype = getpid();
                 messaggio.transazione = transazioneInvio;
                 messaggio.hops = SO_HOPS;
+            /*tentativo riservare un posto nella coda*/
+            operazioniSemaforo.sem_flg = IPC_NOWAIT;
+            operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
+            operazioniSemaforo.sem_op = -1;
+            semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
+            if(semopRisposta == -1 && errno == EAGAIN)
+            {
+                            errno = 0;
+                            idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+                            do{
+                                operazioniSemaforo.sem_flg = IPC_NOWAIT;
+                                operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
+                                operazioniSemaforo.sem_op = -1;
+                                semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
+                                if(semopRisposta == -1 && errno == EAGAIN)
+                                {   
+                                    printf("--------------errore soHops[%d]------------------\n",getpid());
+                                    messaggio.hops--;
+                                    attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
+                                    if(messaggio.hops == 0){
+                                        msgsndRisposta = msgsnd(idCodaMsgMaster, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
+                                        semopRisposta = 0;
+                                        printf("----------------UTENTE CAUSA CREAZIONE NODO-------------\n");
+                                    }else{
+                                        idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+                                    }
+                                }else{
+                                    msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
+                        
+                                }
+                            }while(semopRisposta == -1 && errno == EAGAIN);
+                attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
+                
+            }
+            else{
+                // printf("[%d] ho abbastanza budget %d\n", getpid(), puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
+               
                 msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
                 if(errno == EAGAIN && msgsndRisposta == -1)
                 {
