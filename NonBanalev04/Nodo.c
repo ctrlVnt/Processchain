@@ -393,7 +393,8 @@ int main(int argc, char const *argv[])
     primaTransazioneRicevuta = 1;
 
     while (node)
-    {
+    {   
+        
         while (tpPiena < SO_TP_SIZE1 && node == NODO_CONTINUE && riempimentoTpStop)
         {
             msgrcvRisposta = msgrcv(puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0, IPC_NOWAIT);
@@ -412,6 +413,7 @@ int main(int argc, char const *argv[])
              che il master invia al nodo dopo averlo creato non venga inviata subito ad altri come avveniva prima*/
             if(primaTransazioneRicevuta == 0){
 		        	if(invioAdAmico == 1 && msgrcvRisposta != -1){
+                    /*mtype per controllo ricezione transazione amici*/
 		            messaggioInviato.mtype = 5;
 		            messaggioInviato.transazione = messaggioRicevuto.transazione;
 		            messaggioInviato.hops = SO_HOPS;
@@ -429,10 +431,11 @@ int main(int argc, char const *argv[])
 		                    messaggioInviato.hops--;
 		                    if(messaggioInviato.hops == 0){
 		                        msgsndRisposta = msgsnd(idCodaMsgMaster, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
-		                        errno = 0;
+                                errno = 0;
 		                        printf("----------------soHops == 0-------------\n");
-		                    }
-		                    idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+		                    }else{
+                                idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+                            }
 		                }else{
 		                    msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
 		        

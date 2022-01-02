@@ -818,7 +818,7 @@ int main(int argc, char const *argv[])
         while(creoNuoviNodi){
             msgrcvRisposta = msgrcv(idCodaMsgMaster, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0, IPC_NOWAIT);
 
-            if(msgrcvRisposta == -1 || errno == EAGAIN){
+            if(msgrcvRisposta == -1 && errno == ENOMSG){
                 creoNuoviNodi = 0;
             }else{
                 /*modifica cosmo*/
@@ -835,6 +835,7 @@ int main(int argc, char const *argv[])
                 /*creo il nuovo nodo*/
                 switch(childPid = fork()){
                     case -1:
+                    /*stampo errore*/
                     break;
                     case 0:
                         
@@ -872,6 +873,7 @@ int main(int argc, char const *argv[])
                         
                         messaggioRicevuto.mtype = 6;
                         msgsnd(puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0);
+                        /*controllo dell'errore eventuale*/
                     break;
                 }
                 
