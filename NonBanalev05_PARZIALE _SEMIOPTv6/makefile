@@ -1,0 +1,17 @@
+bozza:	process_chain Nodo Utente 
+	gcc process_chain.o Master.c -o MasterBozza.out
+
+Utente:	process_chain
+	gcc process_chain.o Utente.c -o UtenteBozza.out
+
+Nodo:
+	gcc process_chain.o Nodo.c -o NodoBozza.out
+
+process_chain:
+	gcc -c process_chain.c
+
+run:  
+	./MasterBozza.out
+
+clean: 
+	rm -f *.out *.o

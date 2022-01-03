@@ -1,0 +1,20 @@
+UTENTE
+	-usa struttura dati FRIENDS - V
+
+MASTER
+	-parsare SO_FRIENDS_NUM - V
+	
+	1)for(creo nodi)
+		semaforo -1
+		samforo wait-for-zero
+	 fine ciclo for
+	2)Master popola struttura dati FRIENDS dei nodi. (a ogni nodo verranno assegnati SO_NUM_FRIENDS)
+		for(per ogni node){
+			for(per ogni amico){
+				assegno i successivi SO_NUM_FRIENDS
+			}
+		}
+	3)Faccio partire i nodi
+	4)coda di messaggi master - V
+
+
