@@ -27,6 +27,8 @@ nodo *puntatoreSharedMemoryTuttiNodi;
 utente *puntatoreSharedMemoryTuttiUtenti;
 /*Dopo l'attach punta alla porzione di memroia dove si trovano gli amici del nodo*/
 int *puntatoreSharedMemoryAmiciNodi;
+/*id semaforo limite risorse*/
+int idSemaforoLimiteRisorse;
 /*************/
 
 /*Semafori*/
@@ -91,9 +93,9 @@ int idCodaMessaggiProcessoMaster;
 /*********************/
 
 /*Variabili necessari per poter avviare i nodi, successivamente gli utenti*/
-char parametriPerNodo[14][32];
+char parametriPerNodo[15][32];
 char intToStrBuff[32];
-char parametriPerUtente[16][32];
+char parametriPerUtente[17][32];
 /**************************************************************************/
 
 int q;
@@ -121,7 +123,7 @@ nodo nodoMin;
 
 int main(int argc, char const *argv[])
 {
-    q = 2;
+    q = 10;
     printf("Sono MASTER[%d]\n", getpid());
     /*Parsing dei parametri a RUN-TIME*/
     readAllParametersRisposta = readAllParameters();
@@ -296,6 +298,24 @@ int main(int argc, char const *argv[])
 #if (ENABLE_TEST)
     printf("+ arrayValoriInizialiSemaforiCodeMessaggi inizializzato correttamente\n");
 #endif
+
+    /*limite di sistema*/
+    idSemaforoLimiteRisorse = semget(IPC_PRIVATE, 1, IPC_CREAT | 0600);
+    if (idSemaforoLimiteRisorse == -1)
+    {
+        perror("- semget idSemaforoLimiteRisorse");
+        exit(EXIT_FAILURE);
+    }
+
+    semaforoUnion.val = q*getSoNodesNum();
+
+    semopRisposta = semctl(idSemaforoLimiteRisorse, 0, SETVAL, semaforoUnion);
+    if(semopRisposta == -1)
+    {
+        perror("semctl semaforo risorse");
+        exit(EXIT_FAILURE);
+    }
+
     i = 0;
     for (i; i < getSoNodesNum() * q; i++)
     {
@@ -381,6 +401,8 @@ int main(int argc, char const *argv[])
     strcpy(parametriPerNodo[12], intToStrBuff);
     sprintf(intToStrBuff, "%d", idCodaMessaggiProcessoMaster);
     strcpy(parametriPerNodo[13], intToStrBuff);
+    sprintf(intToStrBuff, "%d", idSemaforoLimiteRisorse);
+    strcpy(parametriPerNodo[14], intToStrBuff);
     /*******************************************/
 
     i = 0;
@@ -422,7 +444,7 @@ int main(int argc, char const *argv[])
 
             // printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./NodoBozza.out", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], parametriPerNodo[10], parametriPerNodo[11], parametriPerNodo[12], parametriPerNodo[13], NULL);
+            execRisposta = execlp("./NodoBozza.out", parametriPerNodo[0], parametriPerNodo[1], parametriPerNodo[2], parametriPerNodo[3], parametriPerNodo[4], parametriPerNodo[5], parametriPerNodo[6], parametriPerNodo[7], parametriPerNodo[8], parametriPerNodo[9], parametriPerNodo[10], parametriPerNodo[11], parametriPerNodo[12], parametriPerNodo[13], parametriPerNodo[14],NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
@@ -560,6 +582,8 @@ int main(int argc, char const *argv[])
     strcpy(parametriPerUtente[14], intToStrBuff);
     sprintf(intToStrBuff, "%d", idCodaMessaggiProcessoMaster);
     strcpy(parametriPerUtente[15], intToStrBuff);
+    sprintf(intToStrBuff, "%d", idSemaforoLimiteRisorse);
+    strcpy(parametriPerUtente[16], intToStrBuff);
     /********************************************************/
     int indiceNodi = 0;
     for (indiceNodi; indiceNodi < getSoUsersNum(); indiceNodi++)
@@ -602,7 +626,7 @@ int main(int argc, char const *argv[])
 
             //printf("+ Tentativo eseguire la execlp\n");
             /*PUNTO FORTE TROVATO - non c'e' da gestire l'array NULL terminated*/
-            execRisposta = execlp("./UtenteBozza.out", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], parametriPerUtente[11], parametriPerUtente[12], parametriPerUtente[13], parametriPerUtente[14], parametriPerUtente[15], NULL);
+            execRisposta = execlp("./UtenteBozza.out", parametriPerUtente[0], parametriPerUtente[1], parametriPerUtente[2], parametriPerUtente[3], parametriPerUtente[4], parametriPerUtente[5], parametriPerUtente[6], parametriPerUtente[7], parametriPerUtente[8], parametriPerUtente[9], parametriPerUtente[10], parametriPerUtente[11], parametriPerUtente[12], parametriPerUtente[13], parametriPerUtente[14], parametriPerUtente[15], parametriPerUtente[16],NULL);
             if (execRisposta == -1)
             {
                 perror("execlp");
@@ -677,12 +701,16 @@ int main(int argc, char const *argv[])
         int a = 0;
         while ((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != 0 && puntatoreSharedMemoryTuttiUtenti[0].userPid > 1)
         {
-            if (WIFEXITED(childStatus))
+            if (WIFEXITED(childStatus) == EXIT_FAILURE)
             {
                 printf("- %d ha terminato prematuramente\n", childPidWait);
                 puntatoreSharedMemoryTuttiUtenti[0].userPid--;
                 /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
                 /* }*/
+            }
+            else
+            {
+                printf("- %d ha terminato con status %d\n", childPidWait, WIFEXITED(childStatus));
             }
             printf("aiaaa\n");
             // printf("qua\n");
@@ -696,7 +724,7 @@ int main(int argc, char const *argv[])
             motivoTerminazione = NO_UTENTI_VIVI;
         }
         /*verifico la mia coda di messaggi*/
-        if(msgrcv(idCodaMessaggiProcessoMaster, &m, sizeof(m.transazione) + sizeof(m.hops), 0, IPC_NOWAIT) > 0)
+        while(master && msgrcv(idCodaMessaggiProcessoMaster, &m, sizeof(m.transazione) + sizeof(m.hops), 0, IPC_NOWAIT) > 0)
         {
             printf("Ricevuto la transazione: %ld, %d, %d\n", m.mtype, m.transazione.receiver, m.transazione.quantita);
             /*devo crearo un nuovo nodo*/
@@ -707,7 +735,7 @@ int main(int argc, char const *argv[])
                 operazioniSemaforo.sem_num = 0;
                 operazioniSemaforo.sem_op = 2;
                 semopRisposta = semop(idSemaforoSincronizzazioneTuttiProcessi, &operazioniSemaforo, 1);
-                if(semopRisposta != -1)
+                if(semopRisposta != -1 && master)
                 {
                     switch(childPid = fork())
                     {
@@ -1211,13 +1239,14 @@ void stampaTerminale(int flag)
         master = MASTER_STOP;
     }
     contatoreStampa = 0;
-    if (getSoNodesNum() < 20)
+    if (getSoNodesNum() < 200000)
     {
         printf("NODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
         for (contatoreStampa; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
         {
             printf("%09d\t%09d\t%09d\n", puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].nodoPid, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].budget, puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].transazioniPendenti);
         }
+        printf("TOTALE NODI: %d\n", puntatoreSharedMemoryTuttiNodi[0].nodoPid);
     }
     else
     {
@@ -1237,6 +1266,7 @@ void stampaTerminale(int flag)
         printf("NODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
         printf("%09d\t%09d\t%09d <-- NODO con budget MAGGIORE\n", nodoMax.nodoPid, nodoMax.budget, nodoMax.transazioniPendenti);
         printf("%09d\t%09d\t%09d <-- NODO con budget MINORE\n", nodoMin.nodoPid, nodoMin.budget, nodoMin.transazioniPendenti);
+        printf("TOTALE NODI: %d\n", puntatoreSharedMemoryTuttiNodi[0].nodoPid);
     }
     printf("*******\nNumero di blocchi: %d\n", *(puntatoreSharedMemoryIndiceLibroMastro));
 }

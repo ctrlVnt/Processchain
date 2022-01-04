@@ -4,7 +4,7 @@
 /***COMPILED***TIME*****/
 /***********************/
 int SO_BLOCK_SIZE = 10;
-int SO_TP_SIZE = 1000;
+int SO_TP_SIZE = 20;
 /***********************/
 
 int getSoBlockSize()

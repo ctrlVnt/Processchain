@@ -63,7 +63,7 @@
 Utilizzata nel ciclo d'attesa di terminazione degli utenti.
 Se un utente termina prematuramente, questo e' il suo valore di ritorno.
 */
-#define EXIT_PREMAT 2
+#define EXIT_PREMAT 1
 /*Le macro che definiscono diversi ragioni della terminazione della simulazione*/
 #define ALLARME_SCATTATO 0
 #define NO_UTENTI_VIVI 1

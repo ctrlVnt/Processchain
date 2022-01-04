@@ -293,6 +293,7 @@ int main(int argc, char const *argv[])
                     errno = 0;
                     idCoda = scegliAmicoNodo(numeroOrdine + 1);
                     printf("NODO scelto: %d\n", idCoda);
+                    
                     do
                     {
                         semopRisposta = semReserve(idSemaforoAccessoMiaCodaMessaggi, -1, (idCoda - 1), IPC_NOWAIT);
@@ -347,7 +348,7 @@ int main(int argc, char const *argv[])
             {
                 errno = 0;
                 /*se e' possibile inviare un blocco - lo faccio*/
-                if (bloccoRiempibile == getSoBlockSize() - 1)
+                if (bloccoRiempibile >= getSoBlockSize() - 1)
                 {
                     /*flag che ferma la ricezione - eventuali transazioni */
                     riempimentoTpStop = 0;

@@ -60,6 +60,7 @@ struct sembuf operazioniSemaforo;
 /*variabile determina ciclo di vita dell'utente*/
 int user;
 int alrm;
+int limiteSistema;
 /*******************/
 
 /*variabili strutture per gestire i segnali*/
@@ -77,6 +78,7 @@ sigset_t maskSetForSigusr2;
 struct sigaction act;
 /*old sigaction generica - uso generale*/
 struct sigaction actPrecedente;
+int idSemaforoLimiteRisorse;
 
 /*******************************************/
 
@@ -239,6 +241,10 @@ int main(int argc, char const *argv[])
 #if (ENABLE_TEST)
     printf("N idCodaMessaggiProcessoMaster: %d\n", idCodaMessaggiProcessoMaster);
 #endif
+    idSemaforoLimiteRisorse = parseIntFromParameters(argv, 16);
+#if (ENABLE_TEST)
+    printf("N idCodaMessaggiProcessoMaster: %d\n", idCodaMessaggiProcessoMaster);
+#endif
 
     /*imposto l'handler*/
     impostaHandlerSaWithMask(&sigactionSigusr1Nuova, &maskSetForSigusr1, &sigactionSigusr1Precedente, SIGUSR1, sigusr1Handler, 1, SIGUSR2);
@@ -250,6 +256,7 @@ int main(int argc, char const *argv[])
     user = UTENTE_CONTINUE;
     alrm = ALARM_CONTINUE;
     transazioneInvio.sender = getpid();
+    limiteSistema = 1;
 #if (ENABLE_TEST)
     printf("\t[%d] inizia\n", getpid());
 #endif
@@ -266,6 +273,10 @@ int main(int argc, char const *argv[])
 #if (ENABLE_TEST)
             printf("SO_RETRY: %d\n", getSoRetry());
 #endif
+            if (getSoRetry() <= 0)
+            {
+                avvisaPoiCambiaStato();
+            }
             break;
         case UTENTE_STOP:
         default:
@@ -281,7 +292,7 @@ int main(int argc, char const *argv[])
 #endif
     if (user == UTENTE_STOP)
     {
-        exit(EXIT_PREMAT);
+        exit(EXIT_FAILURE);
     }
     else
     {
@@ -382,21 +393,25 @@ void attesaNonAttiva(long nsecMin, long nsecMax)
     srand(getpid());
     long ntos = 1e9L;
     long diff = nsecMax - nsecMin;
-    long attesa = rand() % diff + nsecMin;
+    long attesa;
+    if (diff == 0)
+    {
+        attesa = nsecMax;
+    }
+    else
+    {
+        attesa = rand() % diff + nsecMin;
+    }
     int sec = attesa / ntos;
     long nsec = attesa - (sec * ntos);
-/*TEST*/
-#if (ENABLE_TEST)
-    printf("SEC: %d\n", sec);
-    printf("NSEC: %ld\n", nsec);
-#endif
+    /*TEST*/
+    //printf("SEC: %d\n", sec);
+    //printf("NSEC: %ld\n", nsec);
     struct timespec tempoDiAttesa;
     tempoDiAttesa.tv_sec = sec;
     tempoDiAttesa.tv_nsec = nsec;
     nanosleep(&tempoDiAttesa, NULL);
-#if (ENABLE_TEST)
-    printf("FINITO DI ATTENDERE!!!!");
-#endif
+    /*TODO - MASCERARE IL SEGNALE SIGCONT*/
 }
 
 int inviaTransazione(int flag)
@@ -426,7 +441,7 @@ int inviaTransazione(int flag)
             idNodo = scegliNumeroNodo(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
 
             /*preparo la transazione*/
-            q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget) / 5 + 2;
+            q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
             t.reward = (q * getSoReward()) / 100;
             if (t.reward == 0)
             {
@@ -439,7 +454,6 @@ int inviaTransazione(int flag)
             /*verifico se il nodo scelto e' pronto a ricevere la mia t*/
             if (semReserve(idSemaforoAccessoCodeMessaggi, -1, (idNodo - 1), IPC_NOWAIT) == -1 && errno == EAGAIN)
             {
-
                 do
                 {
                     idNodo = scegliAmicoNodo(idNodo);
@@ -448,6 +462,7 @@ int inviaTransazione(int flag)
                     if (semReserve(idSemaforoAccessoCodeMessaggi, -1, (idNodo - 1), IPC_NOWAIT) == -1 && errno == EAGAIN)
                     {
                         m.hops--;
+                        attesaNonAttiva(getSoMinTransGenNsec(), getSoMaxTransGenNsec());
                     }
                     else
                     {
@@ -462,15 +477,32 @@ int inviaTransazione(int flag)
                     //printf("AIAAAA\n");
                 } while (m.hops > 0 && alrm != ALLARME_SCATTATO);
 
-                if (m.hops == 0)
+                if (m.hops == 0 && limiteSistema == 1)
                 {
                     /*m.hops == 0*/
                     /*devo delegare la transazione al master*/
-                    risposta = msgsnd(idCodaMessaggiProcessoMaster, &m, sizeof(transazione) + sizeof(int), 0);
-                    if (risposta != -1)
+                    errno = 0;
+                    risposta = semReserve(idSemaforoLimiteRisorse, -1, 0, IPC_NOWAIT);
+                    if(risposta != -1 && errno != EAGAIN)
                     {
-                        printf("Transazione delegata al master!\n");
+                        risposta = msgsnd(idCodaMessaggiProcessoMaster, &m, sizeof(transazione) + sizeof(int), 0);
+                        if (risposta != -1)
+                        {
+                            puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget -= t.quantita;
+                            printf("Transazione delegata al master!\n");
+                        }
                     }
+                    else
+                    {
+                        limiteSistema = 0;
+                        printf("LIMITE RAGGIUNTO, ERRORE\n");
+                    }
+                }
+                else
+                {
+                    printf("LIMITE RAGGIUNTO, ERRORE else esterno riga 498 UTENTE.c\n");
+                    // setSoRetry(getSoRetry() - 1);
+                    printf("SO_RETRY: %d\n", getSoRetry());
                 }
 
                 /*attendo*/
