@@ -262,10 +262,13 @@ int main(int argc, char const *argv[])
     riempimentoTpStop = 1;
     bloccoRiempibile = 0;
     int regalo;
-    message mRegalo;
+    message messaggioInviato;
     regalo = 0;
-    int idCoda = numeroOrdine + 1;
+    int idCoda = numeroOrdine;
     int inviato = 1;
+    int primaTransazioneRicevuta = 1;
+    int invioAmico = 1;
+    int msgsndRisposta;
     /*ciclo di vita del nodo*/
     while (node)
     {
@@ -277,54 +280,53 @@ int main(int argc, char const *argv[])
 #if (ENABLE_TEST)
             printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, msgrcvRisposta);
 #endif
-            if (errno != EAGAIN && msgrcvRisposta != -1)
+            /**/
+            if(primaTransazioneRicevuta == 0)
             {
-                if(regalo)
+                if(invioAmico == 1 && msgrcvRisposta != -1)
                 {
+                    messaggioInviato.mtype = 5;
+                    messaggioInviato.transazione = messaggioRicevuto.transazione;
+                    puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].transazioniPendenti++;
+                    messaggioInviato.hops == getSoHops();
 
-                    if(inviato)
+                    errno = 0;
+                    idCoda = scegliAmicoNodo(numeroOrdine + 1);
+                    printf("NODO scelto: %d\n", idCoda);
+                    do
                     {
-                        /*regalo inviato*/
-                        mRegalo.transazione = messaggioRicevuto.transazione;
-                        mRegalo.hops = messaggioRicevuto.hops;
-                        /*idCoda = scegliAmicoNodo(idCoda);
-                        semopRisposta = semReserve(idMiaMiaCodaMessaggi, -1, (idCoda - 1), IPC_NOWAIT);
+                        semopRisposta = semReserve(idSemaforoAccessoMiaCodaMessaggi, -1, (idCoda - 1), IPC_NOWAIT);
                         if(semopRisposta == -1 && errno == EAGAIN)
                         {
-                            inviato = 0;
-                            mRegalo.hops--;
-                            if(mRegalo.hops == 0)
+                            printf("ERRORE SHOPS %d\n", getpid());
+                            messaggioInviato.hops--;
+                            if(messaggioInviato.hops-- == 0)
                             {
-                                msgsnd(idCodaMessaggiProcessoMaster, &mRegalo, sizeof(mRegalo.transazione) + sizeof(mRegalo.hops), 0);
+                                msgsndRisposta = msgsnd(idCodaMessaggiProcessoMaster, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
+                                errno = 0;
+                            }
+                            else
+                            {
+                                idCoda = scegliAmicoNodo(idCoda);
+                                printf("AMICO SCELTO: %d\n", idCoda);
                             }
                         }
                         else
                         {
-                            msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &mRegalo, sizeof(mRegalo.transazione) + sizeof(mRegalo.hops), 0);
-                            inviato = 1;
-                        }*/
-                    }
-
-                    /*scelgo amico*/
-                    idCoda = scegliAmicoNodo(idCoda);
-                    semopRisposta = semReserve(idMiaMiaCodaMessaggi, -1, (idCoda - 1), IPC_NOWAIT);
-                    if(semopRisposta == -1 && errno == EAGAIN)
-                    {
-                        inviato = 0;
-                        mRegalo.hops--;
-                        if(mRegalo.hops == 0)
-                        {
-                            msgsnd(idCodaMessaggiProcessoMaster, &mRegalo, sizeof(mRegalo.transazione) + sizeof(mRegalo.hops), 0);
+                            msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
+                            errno = 0;
                         }
-                    }
-                    else
-                    {
-                        printf("REGALO\n%d, %d, %d\n", mRegalo.transazione.receiver, mRegalo.transazione.sender, mRegalo.transazione.quantita);
-                        msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &mRegalo, sizeof(mRegalo.transazione) + sizeof(mRegalo.hops), 0);
-                        inviato = 1;
-                    }
-                    indiceSuccessivoTransactionPool++;
+                    } while (semopRisposta == -1 && errno == EAGAIN && node);
+                    
+                    semRelease(idMiaMiaCodaMessaggi, 1, numeroOrdine, 0);
+                    invioAmico = 0;
+                    continue;
                 }
+            }
+            /**/
+            if (errno != EAGAIN && msgrcvRisposta != -1)
+            {
+                primaTransazioneRicevuta = 0;
                 /*se messaggio e' valido, incremento il contatore di riempimento della TP*/
                 tpPiena++;
                 /*incremento il contatore che regola la possibilita' di riempire il blocco*/
@@ -416,6 +418,7 @@ int main(int argc, char const *argv[])
         aggiornaBilancioNodo(indiceLibroMastroRiservato);
         /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI, RIMETTO A ZERO
           invioAdAmico = 1;*/
+          invioAmico = 1;
     }
 
     /*****************************************/

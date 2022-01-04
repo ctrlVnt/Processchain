@@ -96,6 +96,8 @@ char intToStrBuff[32];
 char parametriPerUtente[16][32];
 /**************************************************************************/
 
+int q;
+
 /*******************/
 /*FUNZIONI*/
 /*Inizializza le variabili globali da un file di input TXT. */
@@ -108,7 +110,6 @@ void stampaTerminale();
 void outputLibroMastro();
 /*la funzione che aggiunge amici*/
 void aggiungiAmico(int newPid, int numeroOrdine);
-void verificaRegistro();
 /**********/
 
 /*VARIABILI PER LA STAMPA*/
@@ -120,6 +121,7 @@ nodo nodoMin;
 
 int main(int argc, char const *argv[])
 {
+    q = 2;
     printf("Sono MASTER[%d]\n", getpid());
     /*Parsing dei parametri a RUN-TIME*/
     readAllParametersRisposta = readAllParameters();
@@ -206,7 +208,7 @@ int main(int argc, char const *argv[])
 
     /*SM*/
     /*REMINDER x2, prima cella di questa SM indica il NUMERO totale di CODE presenti, quindi rispecchia anche il numero dei nodi presenti*/
-    idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (2 * getSoNodesNum() + 1), 0600 | IPC_CREAT);
+    idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (q * getSoNodesNum() + 1), 0600 | IPC_CREAT);
     if (idSharedMemoryTuttiNodi == -1)
     {
         perror("shmget idSharedMemoryTuttiNodi");
@@ -257,7 +259,7 @@ int main(int argc, char const *argv[])
     printf("+ registrazione tutteCodeMessaggi avvenuta con successo, totale code %d\n", numeroNodi);
 #endif
     /*suppongo di non poter avere piu' di 2*SO_FRIENDS_NUM +1 campo header amici*/
-    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, 2 *  getSoNodesNum() * (getSoFriendsNum()*2 + 1) * sizeof(int), 0600 | IPC_CREAT);
+    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, q *  getSoNodesNum() * (getSoFriendsNum()*2 + 1) * sizeof(int), 0600 | IPC_CREAT);
     if (idSharedMemoryAmiciNodi == -1)
     {
         perror("shmget idSharedMemoryAmiciNodi");
@@ -273,9 +275,9 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*setto ogni cella della shared memory a -1*/
-    memset(puntatoreSharedMemoryAmiciNodi, -1, 2 * getSoNodesNum() * (getSoFriendsNum()*2 + 1) * sizeof(int));
+    memset(puntatoreSharedMemoryAmiciNodi, -1, q * getSoNodesNum() * (getSoFriendsNum()*2 + 1) * sizeof(int));
     /*SEMAFORI*/
-    idSemaforoAccessoCodeMessaggi = semget(IPC_PRIVATE, 2 * getSoNodesNum(), 0600 | IPC_CREAT);
+    idSemaforoAccessoCodeMessaggi = semget(IPC_PRIVATE, q * getSoNodesNum(), 0600 | IPC_CREAT);
     if (idSemaforoAccessoCodeMessaggi == -1)
     {
         perror("- semget idSemaforoAccessoCodeMessaggi");
@@ -285,7 +287,7 @@ int main(int argc, char const *argv[])
     printf("+ idSemaforoAccessoCodeMessaggi inizializzato correttamente con id - %d\n", idSemaforoAccessoCodeMessaggi);
 #endif
 
-    arrayValoriInizialiSemaforiCodeMessaggi = (unsigned short *)calloc(getSoNodesNum() * 2, sizeof(unsigned short));
+    arrayValoriInizialiSemaforiCodeMessaggi = (unsigned short *)calloc(getSoNodesNum() * q, sizeof(unsigned short));
     if (arrayValoriInizialiSemaforiCodeMessaggi == NULL)
     {
         perror("- calloc arrayValoriInizialiSemaforiCodeMessaggi");
@@ -295,7 +297,7 @@ int main(int argc, char const *argv[])
     printf("+ arrayValoriInizialiSemaforiCodeMessaggi inizializzato correttamente\n");
 #endif
     i = 0;
-    for (i; i < getSoNodesNum() * 2; i++)
+    for (i; i < getSoNodesNum() * q; i++)
     {
         arrayValoriInizialiSemaforiCodeMessaggi[i] = getTpSize();
     }
@@ -699,7 +701,7 @@ int main(int argc, char const *argv[])
             printf("Ricevuto la transazione: %ld, %d, %d\n", m.mtype, m.transazione.receiver, m.transazione.quantita);
             /*devo crearo un nuovo nodo*/
             /*verifico se ho ancora spazio per poter ospitare un nuovo nodo*/
-            if(puntatoreSharedMemoryTuttiNodi[0].nodoPid < (2 * getSoNodesNum()))
+            if(puntatoreSharedMemoryTuttiNodi[0].nodoPid < (q * getSoNodesNum()))
             {
                 operazioniSemaforo.sem_flg = 0;
                 operazioniSemaforo.sem_num = 0;
@@ -1115,6 +1117,7 @@ void alarmHandler(int sigNum)
     for (cont; cont < puntatoreSharedMemoryTuttiNodi[0].nodoPid; cont++)
     {
         kill(puntatoreSharedMemoryTuttiNodi[cont + 1].nodoPid, SIGUSR1);
+        printf("NOTIFICO NODO: %d\n", puntatoreSharedMemoryTuttiNodi[cont + 1].nodoPid);
     }
     master = MASTER_STOP;
     motivoTerminazione = ALLARME_SCATTATO;
@@ -1313,36 +1316,5 @@ void aggiungiAmico(int newPid, int numeroOrdine)
                 }
             }
         }
-    }
-}
-
-void verificaRegistro()
-{
-    int sommaU1;
-    int sommaU2;
-    sommaU1 = 0;
-    sommaU2 = 0;
-
-    for(int i = 0; i < getSoUsersNum(); i++)
-    {
-        sommaU1 = 0;
-        sommaU2 = 0;
-        printf("Budget associato nella SM: %d\n", puntatoreSharedMemoryTuttiUtenti[i+1].budget);
-        for(int j = 0; j < puntatoreSharedMemoryIndiceLibroMastro[0]; j++)
-        {
-            for(int x = 0; x < getSoBlockSize() - 1; x++)
-            {
-                if(puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].receiver == puntatoreSharedMemoryTuttiUtenti[i+1].userPid)
-                {
-                    sommaU1 += puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].quantita;
-                }
-                if(puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].sender == puntatoreSharedMemoryTuttiUtenti[i+1].userPid)
-                {
-                    sommaU2 += puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].quantita;
-                }
-            }
-        }
-        printf("TOTALE RICEVUTO: %d\n", sommaU1);
-        printf("TOTALE INVIATO: %d\n", sommaU2);
     }
 }
