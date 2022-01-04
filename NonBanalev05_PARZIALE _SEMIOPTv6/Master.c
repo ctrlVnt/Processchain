@@ -108,6 +108,7 @@ void stampaTerminale();
 void outputLibroMastro();
 /*la funzione che aggiunge amici*/
 void aggiungiAmico(int newPid, int numeroOrdine);
+void verificaRegistro();
 /**********/
 
 /*VARIABILI PER LA STAMPA*/
@@ -1312,5 +1313,36 @@ void aggiungiAmico(int newPid, int numeroOrdine)
                 }
             }
         }
+    }
+}
+
+void verificaRegistro()
+{
+    int sommaU1;
+    int sommaU2;
+    sommaU1 = 0;
+    sommaU2 = 0;
+
+    for(int i = 0; i < getSoUsersNum(); i++)
+    {
+        sommaU1 = 0;
+        sommaU2 = 0;
+        printf("Budget associato nella SM: %d\n", puntatoreSharedMemoryTuttiUtenti[i+1].budget);
+        for(int j = 0; j < puntatoreSharedMemoryIndiceLibroMastro[0]; j++)
+        {
+            for(int x = 0; x < getSoBlockSize() - 1; x++)
+            {
+                if(puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].receiver == puntatoreSharedMemoryTuttiUtenti[i+1].userPid)
+                {
+                    sommaU1 += puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].quantita;
+                }
+                if(puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].sender == puntatoreSharedMemoryTuttiUtenti[i+1].userPid)
+                {
+                    sommaU2 += puntatoreSharedMemoryLibroMastro[j*getSoBlockSize() + x].quantita;
+                }
+            }
+        }
+        printf("TOTALE RICEVUTO: %d\n", sommaU1);
+        printf("TOTALE INVIATO: %d\n", sommaU2);
     }
 }
