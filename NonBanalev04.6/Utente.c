@@ -541,7 +541,7 @@ int main(int argc, char const *argv[])
         perror("shmdt puntatoreSharedMemoryTutteCodeMessaggi");
         exit(EXIT_FAILURE);
     }
-    printf("Risorse deallocate correttamente\n");
+    //printf("Risorse deallocate correttamente\n");
     if(user == UTENTE_STOP)
     {
         exit(EXIT_PREMAT);

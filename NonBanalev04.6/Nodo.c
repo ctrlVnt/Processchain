@@ -438,7 +438,7 @@ int main(int argc, char const *argv[])
                             }
 		                }else{
 		                    msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
-		        
+		        			errno = 0;
 		                }
 		            }while(semopRisposta == -1 && errno == EAGAIN);
 
@@ -478,7 +478,7 @@ int main(int argc, char const *argv[])
                 }
             }else{
                 errno = 0;
-                if(bloccoRiempibile == SO_BLOCK_SIZE1 - 1){
+                if(bloccoRiempibile >= SO_BLOCK_SIZE1 - 1){
                     riempimentoTpStop = 0;
                 }else{
                     attesaNonAttiva(soMinTransProcNsec, soMaxTransProcNsec);
@@ -600,7 +600,7 @@ int main(int argc, char const *argv[])
         perror("shmdt puntatoreSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
-    printf("Risorse deallocate correttamente\n");
+  //  printf("Risorse deallocate correttamente\n");
     return EXIT_SUCCESS;
 }
 

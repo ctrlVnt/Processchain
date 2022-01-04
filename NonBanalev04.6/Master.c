@@ -929,7 +929,7 @@ int main(int argc, char const *argv[])
     /*Prima di chiudere le risorse... Attendo i figli(nodo e figli rimasti) hehehe*/
     while ((childPidWait = waitpid(-1, &childStatus, 0)) != -1)
     {
-        printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));
+       printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));
     }
     /********************************************************/
     /*STAMPO CON MOTIVO DELLA TERMINAZIONE - flag = 1*/
