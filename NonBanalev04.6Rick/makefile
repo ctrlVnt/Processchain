@@ -1,16 +1,24 @@
-master: MasterBozzaModificato27Dic.c UtenteBozzaModificato27Dic.c NodoBozzaModificato27Dic.c
-	gcc MasterBozzaModificato27Dic.c  -o master 
+all: Nodo Utente Master
 
-bozza:	Utente Nodo process_chain
-	gcc process_chain.o Master.c -o MasterBozza.out
+Master:	process_chain.o Master.o
+	gcc process_chain.o Master.o -o MasterBozza.out
 
-Utente:	process_chain
-	gcc Utente.c -o UtenteBozza.out
+Master.o: Master.c
+	gcc -c Master.c
 
-Nodo:	process_chain
-	gcc Nodo.c -o NodoBozza.out
+Utente:	process_chain.o Utente.o
+	gcc process_chain.o Utente.o -o UtenteBozza.out
 
-process_chain:
+Utente.o: Utente.c
+	gcc -c Utente.c
+
+Nodo: Nodo.o process_chain.o
+	gcc process_chain.o Nodo.o -o NodoBozza.out
+
+Nodo.o: Nodo.c
+	gcc -c Nodo.c
+
+process_chain.o: process_chain.c
 	gcc -c process_chain.c
 
 run:  
