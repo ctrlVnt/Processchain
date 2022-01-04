@@ -199,6 +199,8 @@ int childStatus;
 int contatoreUtentiVivi;
 int motivoTerminazione;
 int idCodaMessaggiProcessoMaster;
+/*modifica cosmo*/
+int contaTransAmici;
 
 /*********************/
 
@@ -220,6 +222,8 @@ int readAllParameters();
 void alarmHandler(int sigNum);
 /*stampa terminale*/
 void stampaTerminale();
+
+void stampaLibroMastro();
 
 /**********/
 
@@ -820,19 +824,9 @@ int main(int argc, char const *argv[])
     /*STAMPO CON MOTIVO DELLA TERMINAZIONE - flag = 1*/
     stampaTerminale(1);
     /**********************************/
-    /*void stampaLibroMastro()
-/*{*/
-    /*   printf("RECEIVER(PID)|SENDER(PID)|QUANTITA|SEC_ELAPSED\n");
-       for(int i = 0; i < *puntatoreSharedMemoryIndiceLibroMastro; i++)
-       {
-           for(int j = 0; j < SO_BLOCK_SIZE; j++)
-           {
-               printf("|%010d||%010d||%010d||%s\n", puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].receiver, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].sender, puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].quantita, ctime(&puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].timestamp.tv_sec));
-           }
-           printf("\n");
-       }*/
-    printf("Indice: %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
-    /*}*/
+    /*modifica cosmo*/
+    stampaLibroMastro();
+
     /*Chiusura delle risorse*/
     shmdtRisposta = shmdt(puntatoreSharedMemoryAmiciNodi);
     if (shmdtRisposta == -1)
@@ -1209,3 +1203,16 @@ void stampaTerminale(int flag)
     }
     printf("*******\nNumero di blocchi: %d\n", *(puntatoreSharedMemoryIndiceLibroMastro));
 }
+
+void stampaLibroMastro(){
+      printf("RECEIVER(PID)|SENDER(PID)|QUANTITA|SEC_ELAPSED\n");
+       for(int i = 0; i < *puntatoreSharedMemoryIndiceLibroMastro; i++)
+       {
+           for(int j = 0; j < SO_BLOCK_SIZE; j++)
+           {
+               printf("|%010d|\t",puntatoreSharedMemoryLibroMastro[SO_BLOCK_SIZE*i+j].quantita);
+           }
+           printf("\n");
+       }
+        printf("Indice: %d\n", puntatoreSharedMemoryIndiceLibroMastro[0]);
+    }

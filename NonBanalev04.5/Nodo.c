@@ -600,7 +600,7 @@ int main(int argc, char const *argv[])
         perror("shmdt puntatoreSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
-    printf("Risorse deallocate correttamente\n");
+   /* printf("Risorse deallocate correttamente\n");*/
     return EXIT_SUCCESS;
 }
 

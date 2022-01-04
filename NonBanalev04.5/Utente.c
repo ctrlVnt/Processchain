@@ -162,7 +162,7 @@ void attesaNonAttiva(long nsecMin, long nsecMax);
 
 int main(int argc, char const *argv[])
 {
-    printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
+  /*  printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);*/
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
     SO_TP_SIZE1 = 10;
     SO_BLOCK_SIZE1 = 7;
@@ -180,7 +180,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(TEST_ENABLED)
+    #if(ENABLE_TEST == 1)
         printf("\tsoMinTransProcNsec: %ld\n", soMinTransGenNsec);
     #endif
     soMaxTransGenNsec = strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/argv[2], /*PUNTATTORE DI FINE*/&endptr, /*BASE*/10);
@@ -195,7 +195,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(TEST_ENABLED)
+    #if(ENABLE_TEST == 1)
         printf("\tsoMaxTransProcNsec: %ld\n", soMaxTransGenNsec);
     #endif
 
@@ -207,7 +207,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tidSharedMemoryTutteCodeMessaggi: %d\n", idSharedMemoryTuttiNodi);
     #endif
     
@@ -226,7 +226,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tnumeroOrdineUtente: %d\n", numeroOrdine);
     #endif
 
@@ -237,7 +237,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tidSharedMemoryLibroMastro: %d\n", idSharedMemoryLibroMastro);
     #endif
     
@@ -257,7 +257,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tsoRetry: %d\n", soRetry);
     #endif
 
@@ -269,7 +269,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tsoBudgetInit: %d\n", soBudgetInit);
     #endif
 
@@ -280,7 +280,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tidSharedMemoryTuttiUtenti: %d\n", idSharedMemoryTuttiUtenti);
     #endif
     
@@ -303,7 +303,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tidSemaforoAccessoCodeMessaggi: %d\n", idSemaforoAccessoCodeMessaggi);
     #endif
 
@@ -315,7 +315,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     /*TEST*/
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tidSharedMemoryIndiceLibroMastro: %d\n", idSharedMemoryIndiceLibroMastro);
     #endif
     /*ID OK -- effettuo l'attach*/
@@ -326,9 +326,9 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
     else{
-        printf("\tPuntatore esiste!\n");
+        /*printf("\tPuntatore esiste!\n");*/
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\tValore indiceLibroMastro: %d\n", *puntatoreSharedMemoryIndiceLibroMastro);
     #endif
     SO_REWARD = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[11], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
@@ -337,7 +337,7 @@ int main(int argc, char const *argv[])
         perror("Errore di conversione SO_REWARD");
         exit(EXIT_FAILURE);
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\t U SO_REWARD: %d\n", SO_REWARD);
     #endif
     SO_TP_SIZE1 = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[12], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);
@@ -346,7 +346,7 @@ int main(int argc, char const *argv[])
         perror("Errore di conversione SO_TP_SIZE1");
         exit(EXIT_FAILURE);
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("\t U SO_TP_SIZE1: %d\n", SO_TP_SIZE1);
     #endif
     SO_BLOCK_SIZE1 = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[13], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);             
@@ -355,7 +355,7 @@ int main(int argc, char const *argv[])
         perror("Errore di conversione SO_BLOCK_SIZE1");
         exit(EXIT_FAILURE);
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("U SO_BLOCK_SIZE1: %d\n", SO_BLOCK_SIZE1);
     #endif
     SO_FRIENDS_NUM = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[14], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);             
@@ -364,7 +364,7 @@ int main(int argc, char const *argv[])
         perror("Errore di conversione SO_FRIENDS_NUM");
         exit(EXIT_FAILURE);
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("U SO_FRIENDS_NUM: %d\n", SO_FRIENDS_NUM);
     #endif
     SO_HOPS = (int)strtol(/*PRIMO PARAMETRO DELLA LISTA EXECVE*/ argv[15], /*PUNTATTORE DI FINE*/ &endptr, /*BASE*/ 10);             
@@ -373,7 +373,7 @@ int main(int argc, char const *argv[])
         perror("Errore di conversione SO_HOPS");
         exit(EXIT_FAILURE);
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("U SO_HOPS: %d\n", SO_HOPS);
     #endif
 
@@ -383,7 +383,7 @@ int main(int argc, char const *argv[])
         perror("Errore di conversione idSharedMemoryAmiciNodi");
         exit(EXIT_FAILURE);
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("U idSharedMemoryAmiciNodi: %d\n", idSharedMemoryAmiciNodi);
     #endif
 
@@ -393,7 +393,7 @@ int main(int argc, char const *argv[])
         perror("Errore di conversione idCodaMsgMaster");
         exit(EXIT_FAILURE);
     }
-    #if(ENABLE_TEST)
+    #if(ENABLE_TEST == 1)
         printf("U idCodaMsgMaster: %d\n", idCodaMsgMaster);
     #endif
 
@@ -416,7 +416,7 @@ int main(int argc, char const *argv[])
     int idCoda;
     int semopRisposta;
     transazioneInvio.sender = getpid();
-    printf("\t[%d] inizia\n", getpid());
+    /*printf("\t[%d] inizia\n", getpid());*/
     while(user == UTENTE_CONTINUE)
     {
     	
@@ -452,12 +452,12 @@ int main(int argc, char const *argv[])
             semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
             if(semopRisposta == -1 && errno == EAGAIN)
             {
-                    errno = 0;
+                  /*  errno = 0;
 		            idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
 		            do{
 		                operazioniSemaforo.sem_flg = IPC_NOWAIT;
 		                operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
-		                operazioniSemaforo.sem_op = -1;
+		              /*  operazioniSemaforo.sem_op = -1;
 		                semopRisposta = semop(idSemaforoAccessoCodeMessaggi, &operazioniSemaforo, 1);
 		                if(semopRisposta == -1 && errno == EAGAIN)
 		                {   
@@ -474,7 +474,7 @@ int main(int argc, char const *argv[])
 		                    msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
 		        
 		                }
-		            }while(semopRisposta == -1 && errno == EAGAIN);
+		            }while(semopRisposta == -1 && errno == EAGAIN);*/
 
                 attesaNonAttiva(soMinTransGenNsec, soMaxTransGenNsec);
                 
@@ -629,7 +629,12 @@ void attesaNonAttiva(long nsecMin, long nsecMax)
     srand(getpid());
     long ntos = 1e9L;
     long diff = nsecMax - nsecMin;
-    long attesa = rand() % diff + nsecMin;
+    long attesa;
+    if(diff == 0){
+        attesa = nsecMin;
+    }else{
+        attesa = rand() % diff + nsecMin;
+    }
     int sec = attesa / ntos;
     long nsec = attesa - (sec * ntos);
     /*TEST*/

@@ -132,12 +132,15 @@ transazione transazioneReward;
 int indiceLibroMastroRiservato;
 int riempimentoTpStop;
 int bloccoRiempibile;
+/*modifica cosmo*/
 int invioAdAmico; /*variabile per invio transazione amico*/
 int idCoda; /*scelta del nodo amico a cui inviare la transazione*/
 struct timespec timespecRand; /*struct per srand*/
 int amicoScelto;
 int msgsndRisposta;
 message messaggioInviato;
+int transRicevuteDaAmici;
+/*fine modifica cosmo*/
 /*indice ausiliario*/
 int i;
 
@@ -371,7 +374,9 @@ int main(int argc, char const *argv[])
 
     riempimentoTpStop = 1;
     bloccoRiempibile = 0;
+    /*modifica cosmo*/
     invioAdAmico = 1;
+    transRicevuteDaAmici = 0;
 
     while (node)
     {
@@ -387,8 +392,9 @@ int main(int argc, char const *argv[])
 
             // printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, msgrcvRisposta);
              /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI*/
-            if(invioAdAmico == 1){
-                messaggioInviato.mtype = getpid();
+             /*modifica cosmo*/
+            if(invioAdAmico == 1 && msgrcvRisposta != -1){
+                messaggioInviato.mtype = 5;
                 messaggioInviato.transazione = messaggioRicevuto.transazione;
                 messaggioInviato.hops = SO_HOPS;
 
@@ -430,6 +436,11 @@ int main(int argc, char const *argv[])
                 bloccoRiempibile++;
                 transactionPool[(indiceSuccessivoTransactionPool++)] = messaggioRicevuto.transazione;
                 puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].transazioniPendenti++;
+                /*modifica cosmo*/
+                if(messaggioRicevuto.mtype == 5){
+                    transRicevuteDaAmici++;
+                }
+                
 
                 if(indiceSuccessivoTransactionPool == SO_TP_SIZE1)
                 {
@@ -524,10 +535,14 @@ int main(int argc, char const *argv[])
         aggiornaBilancioNodo(indiceLibroMastroRiservato);
 
         /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI, RIMETTO A ZERO*/
+        /*modifica cosmin*/
           invioAdAmico = 1;
     }
 
     /*****************************************/
+
+    /*modifica cosmo*/
+    printf("???????????????????Ho ricevuto %d transazione da amici???????????????????\n", transRicevuteDaAmici);
 
     /*CICLO DI VITA DEL NODO TERMINA*/
     /*Deallocazione delle risorse*/
@@ -628,6 +643,7 @@ void aggiornaBilancioNodo(int indiceLibroMastroRiservato)
     // printf("[%d] aggiornamento bilancio terminato\n", getpid());
 }
 
+/*modifica cosmin*/
 int scegliNumeroCoda(int max)
 {
     // printf("Scelgo coda...\n");

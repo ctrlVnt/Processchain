@@ -210,6 +210,7 @@ int contaTransAmici;
 message messaggioRicevuto;
 int creoNuoviNodi;
 int amico;/*variabile per tenere traccia dell'ultimo amico scelto*/
+int transazioniPerse;
 
 /*********************/
 
@@ -431,7 +432,7 @@ int main(int argc, char const *argv[])
     }
     /*SEMAFORI*/
     /*modifica cosmo*/
-    idSemaforoAccessoNodoCodaMessaggi = semget(IPC_PRIVATE, 10 * SO_NODES_NUM, 0600 | IPC_CREAT);
+    idSemaforoAccessoNodoCodaMessaggi = semget(IPC_PRIVATE, 100 * SO_NODES_NUM, 0600 | IPC_CREAT);
     if (idSemaforoAccessoNodoCodaMessaggi == -1)
     {
         perror("- semget idSemaforoAccessoNodoCodaMessaggi");
@@ -811,6 +812,7 @@ int main(int argc, char const *argv[])
     master = MASTER_CONTINUE;
     /*modifica cosmo*/
     amico = 1;
+    transazioniPerse = 0;
 
     while (master)
     {
@@ -819,7 +821,8 @@ int main(int argc, char const *argv[])
         /*modifica cosmo*/
         errno = 0;
         creoNuoviNodi = 1;
-        while(creoNuoviNodi){
+        while(creoNuoviNodi && master){
+            printf("Sono nel ciclo per creare i nodi\n");
             msgrcvRisposta = msgrcv(idCodaMsgMaster, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0, IPC_NOWAIT);
 
             if(msgrcvRisposta == -1 && errno == ENOMSG){
@@ -834,12 +837,19 @@ int main(int argc, char const *argv[])
                     exit(EXIT_FAILURE);
                 }
                 /*costruisco l'ultimo parametro della lista*/
+                         /*incremento il numero di nodi*/
+                        puntatoreSharedMemoryTuttiNodi[0].nodoPid++;
                         sprintf(intToStrBuff, "%d", /*i-esimo nodo*/ puntatoreSharedMemoryTuttiNodi[0].nodoPid);
                         strcpy(parametriPerNodo[4], intToStrBuff);
                 /*creo il nuovo nodo*/
                 switch(childPid = fork()){
                     case -1:
                     /*stampo errore*/
+                    printf("+++++++++++++++++++++++++++++++Memoria di sistema insufficiente, transazione perduta e nodo non creato -> %s+++++++++++++++++++++++++\n", strerror(errno));
+                    printf("Non creo più nodi\n");
+                    transazioniPerse++;
+                    creoNuoviNodi = 0;
+
                     break;
                     case 0:
                         
@@ -851,8 +861,7 @@ int main(int argc, char const *argv[])
                         }
                     break;
                     default:
-                        /*incremento il numero di nodi*/
-                        puntatoreSharedMemoryTuttiNodi[0].nodoPid++;
+                       
                         /*imposto la relativa coda di messaggi*/
                         puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].mqId = msggetRisposta;
                         puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].transazioniPendenti = 0;
@@ -877,12 +886,14 @@ int main(int argc, char const *argv[])
                         
                         messaggioRicevuto.mtype = 6;
                         msgsnd(puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].mqId, &messaggioRicevuto, sizeof(messaggioRicevuto.transazione) + sizeof(messaggioRicevuto.hops), 0);
+                        creoNuoviNodi = 0;
                         /*controllo dell'errore eventuale*/
                     break;
                 }
                 
             }
-
+            /*modifica cosmo extra da cancellare*/
+          
         }
 
         if (puntatoreSharedMemoryIndiceLibroMastro[0] == SO_REGISTRY_SIZE)
@@ -894,39 +905,41 @@ int main(int argc, char const *argv[])
             break; /*perhe' non voglio che venga eseguito codice sottostante, alterniativa spostare questo pezzo alla fine*/
         }
         /*stampo INFO */
-        stampaTerminale(0);
+        /*stampaTerminale(0);*/
         /**/
         /*verifico se qualcuno ha cambiato lo stato senza attendere*/
         int a = 0;
-        while ((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != 0)
+        while ((childPidWait = waitpid(-1, &childStatus, WNOHANG)) != 0 && master)
         {
             if (WIFEXITED(childStatus))
             {
                 puntatoreSharedMemoryTuttiUtenti[0].userPid--;
                 /*nel caso non ci siano piu' figli, oppure e' rimasto un figlio solo -- termino la simulazione*/
                 /* }*/
+                printf("Figlio ha cambiato stato\n");
             }
         }
 
         if (puntatoreSharedMemoryTuttiUtenti[0].userPid <= 1)
         {
             /*COME SE ALLARME SCATASSE*/
-            // stampaTerminale(1);
+            stampaTerminale(1);
             raise(SIGALRM);
             master = MASTER_STOP;
             motivoTerminazione = NO_UTENTI_VIVI;
         }
     }
+    printf("++++++++++++++++++++++++++++TRANSAZIONI PERSE : %d++++++++++++++++++++++\n", transazioniPerse);
 
     /***********************************/
     /*Prima di chiudere le risorse... Attendo i figli(nodo e figli rimasti) hehehe*/
     while ((childPidWait = waitpid(-1, &childStatus, 0)) != -1)
     {
-        /*printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));*/
+        printf("+ %d ha terminato con status %d\n", childPidWait, WEXITSTATUS(childStatus));
     }
     /********************************************************/
     /*STAMPO CON MOTIVO DELLA TERMINAZIONE - flag = 1*/
-    /*stampaTerminale(1);*/
+    stampaTerminale(1);
     /**********************************/
     /*modifica cosmo*/
     stampaLibroMastro();
