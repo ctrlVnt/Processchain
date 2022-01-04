@@ -56,6 +56,18 @@ typedef struct nodo_ds
     int transazioniPendenti;
     //int *friends;
 } nodo;
+
+/*struttura che contiene gli amici*/
+typedef struct friend_ds
+{
+    /*nodo i-esimo*/
+    int num;
+    /*lista di amici del nodo i-esimo*/
+    int *myFriend;
+    /*numero di elementi per ogni nodo*/
+    int soFriends;
+}amico;
+
 /***********/
 
 /*VARIABILI GLOBALI*/
@@ -92,7 +104,7 @@ int *puntatoreSharedMemoryIndiceLibroMastro;
 /*id Shared memory dove ci sono gli amici del nodo*/
 int idSharedMemoryAmiciNodi;
 /*Dopo l'attach punta alla porzione di memoria condivisa dove ci sono gli amici del nodo*/
-int *puntatoreSharedMemoryAmiciNodi;
+amico *puntatoreSharedMemoryAmiciNodi;
 
 /*modifica cosmo*/
 int idCodaMsgMaster;
@@ -165,7 +177,7 @@ int scegliNumeroCoda(int max);
 int main(int argc, char const *argv[])
 {
     printf("%s: nodo[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
-
+    
     /*INIZIALIZZO VARIABILI A COMPILE TIME*/
     SO_TP_SIZE1 = 10;
     SO_BLOCK_SIZE1 = 7;
@@ -336,8 +348,8 @@ int main(int argc, char const *argv[])
     #if(ENABLE_TEST)
         printf("N idSharedMemoryAmiciNodi: %d\n", idSharedMemoryAmiciNodi);
     #endif
-    puntatoreSharedMemoryAmiciNodi = (int *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
-    if (*puntatoreSharedMemoryAmiciNodi == -1)
+    puntatoreSharedMemoryAmiciNodi = (amico *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
+    if (errno == 22)
     {
         perror("shmat");
         exit(EXIT_FAILURE);
@@ -419,7 +431,7 @@ int main(int argc, char const *argv[])
 		            messaggioInviato.hops = SO_HOPS;
 
 		            errno = 0;
-		            idCoda = puntatoreSharedMemoryAmiciNodi[numeroOrdine * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+		            idCoda = scegliNumeroCoda(puntatoreSharedMemoryAmiciNodi[numeroOrdine].soFriends - 1);
 		            do{
 		                operazioniSemaforo.sem_flg = IPC_NOWAIT;
 		                operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
@@ -427,18 +439,16 @@ int main(int argc, char const *argv[])
 		                semopRisposta = semop(idSemaforoAccessoMiaCodaMessaggi, &operazioniSemaforo, 1);
 		                if(semopRisposta == -1 && errno == EAGAIN)
 		                {   
-		                    printf("--------------errore soHops[%d]------------------\n",getpid());
 		                    messaggioInviato.hops--;
 		                    if(messaggioInviato.hops == 0){
 		                        msgsndRisposta = msgsnd(idCodaMsgMaster, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
                                 errno = 0;
-		                        printf("----------------soHops == 0-------------\n");
 		                    }else{
-                                idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+                                idCoda = scegliNumeroCoda(puntatoreSharedMemoryAmiciNodi[numeroOrdine].soFriends - 1);
                             }
 		                }else{
 		                    msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
-		        			errno = 0;
+		        
 		                }
 		            }while(semopRisposta == -1 && errno == EAGAIN);
 
@@ -478,7 +488,7 @@ int main(int argc, char const *argv[])
                 }
             }else{
                 errno = 0;
-                if(bloccoRiempibile >= SO_BLOCK_SIZE1 - 1){
+                if(bloccoRiempibile == SO_BLOCK_SIZE1 - 1){
                     riempimentoTpStop = 0;
                 }else{
                     attesaNonAttiva(soMinTransProcNsec, soMaxTransProcNsec);
@@ -600,7 +610,6 @@ int main(int argc, char const *argv[])
         perror("shmdt puntatoreSharedMemoryTuttiNodi");
         exit(EXIT_FAILURE);
     }
-  //  printf("Risorse deallocate correttamente\n");
     return EXIT_SUCCESS;
 }
 

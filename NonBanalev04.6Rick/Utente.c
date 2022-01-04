@@ -68,6 +68,16 @@ typedef struct nodo_ds
     //int *friends;
 } nodo;
 
+typedef struct friend_ds
+{
+    /*nodo i-esimo*/
+    int num;
+    /*lista di amici del nodo i-esimo*/
+    int *myFriend;
+    /*numero di elementi per ogni nodo*/
+    int soFriends;
+}amico;
+
 /***********/
 
 /*VARIABILI GLOBALI*/
@@ -110,7 +120,7 @@ utente *puntatoreSharedMemoryTuttiUtenti;
 /*id Shared memory dove ci sono gli amici del nodo*/
 int idSharedMemoryAmiciNodi;
 /*Dopo l'attach punta alla porzione di memoria condivisa dove ci sono gli amici del nodo*/
-int *puntatoreSharedMemoryAmiciNodi;
+amico *puntatoreSharedMemoryAmiciNodi;
 /*numero totale di utenti*/
 int numeroTotaleUtenti;
 /*variabile struttura per effettuare le operazioni sul semaforo*/
@@ -385,8 +395,8 @@ int main(int argc, char const *argv[])
         printf("U idSharedMemoryAmiciNodi: %d\n", idSharedMemoryAmiciNodi);
     #endif
 
-    puntatoreSharedMemoryAmiciNodi = (int *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
-    if (*puntatoreSharedMemoryAmiciNodi == -1)
+    puntatoreSharedMemoryAmiciNodi = (amico *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
+    if (errno == 22)
     {
         perror("shmat");
         exit(EXIT_FAILURE);
@@ -451,7 +461,7 @@ int main(int argc, char const *argv[])
             if(semopRisposta == -1 && errno == EAGAIN)
             {
                             errno = 0;
-                            idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+                            idCoda = scegliNumeroCoda(puntatoreSharedMemoryAmiciNodi[idCoda].soFriends - 1);
                             do{
                                 operazioniSemaforo.sem_flg = IPC_NOWAIT;
                                 operazioniSemaforo.sem_num = idCoda - 1; /*traslo verso sinistra*/
@@ -467,7 +477,7 @@ int main(int argc, char const *argv[])
                                         semopRisposta = 0;
                                         printf("----------------UTENTE CAUSA CREAZIONE NODO-------------\n");
                                     }else{
-                                        idCoda = puntatoreSharedMemoryAmiciNodi[idCoda * SO_FRIENDS_NUM + scegliNumeroCoda(SO_FRIENDS_NUM)-1];
+                                        idCoda = scegliNumeroCoda(puntatoreSharedMemoryAmiciNodi[idCoda].soFriends - 1);
                                     }
                                 }else{
                                     msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
@@ -483,7 +493,7 @@ int main(int argc, char const *argv[])
                 msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
                 if(errno == EAGAIN && msgsndRisposta == -1)
                 {
-                   
+                    /*printf("Coda scelta occupata...\n");*/
                    soRetry--;
                     
                 }
@@ -541,7 +551,6 @@ int main(int argc, char const *argv[])
         perror("shmdt puntatoreSharedMemoryTutteCodeMessaggi");
         exit(EXIT_FAILURE);
     }
-    //printf("Risorse deallocate correttamente\n");
     if(user == UTENTE_STOP)
     {
         exit(EXIT_PREMAT);
