@@ -61,6 +61,17 @@ typedef struct nodo_ds
     int transazioniPendenti;
 } nodo;
 
+/*struttura che contiene gli amici*/
+typedef struct friend_ds
+{
+    /*nodo i-esimo*/
+    int num;
+    /*lista di amici del nodo i-esimo*/
+    int *myFriend;
+    /*numero di elementi per ogni nodo*/
+    int soFriends;
+}amico;
+
 /***********/
 
 /*VARIABILI GLOBALI*/
@@ -126,7 +137,7 @@ nodo *puntatoreSharedMemoryTuttiNodi;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente i PID degli utenti*/
 utente *puntatoreSharedMemoryTuttiUtenti;
 /*Dopo l'attach punta alla porzione di memroia dove si trovano gli amici del nodo*/
-int *puntatoreSharedMemoryAmiciNodi;
+amico *puntatoreSharedMemoryAmiciNodi;
 
 /*************/
 
@@ -211,7 +222,8 @@ int transazioniPerse; /*transazioni perse causa impossibilità di creare nodi*/
 int contaTransAmici;
 message messaggioRicevuto;
 int creoNuoviNodi;
-int amico;/*variabile per tenere traccia dell'ultimo amico scelto*/
+int friend;/*variabile per tenere traccia dell'ultimo amico scelto*/
+struct timespec timespecRand;
 
 /*********************/
 
@@ -237,6 +249,8 @@ void stampaTerminale();
 void stampaLibroMastro();
 /*modifica cosmo*/
 void assegnoAmici(int nextFriend);
+/*assegno il mio ad altri nodi*/
+void miAssegno(int newFriend);
 
 /**********/
 
@@ -416,7 +430,7 @@ int main(int argc, char const *argv[])
     printf("+ registrazione tutteCodeMessaggi avvenuta con successo, totale code %d\n", numeroNodi);
 #endif
     /*modifica cosmo -> algoritmo calcolo nodi da implementare*/
-    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, 100* SO_NODES_NUM * SO_FRIENDS_NUM * sizeof(int), 0600 | IPC_CREAT);
+    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, 100 * SO_NODES_NUM * SO_FRIENDS_NUM * sizeof(amico), 0600 | IPC_CREAT);
     if (idSharedMemoryAmiciNodi == -1)
     {
         perror("shmget idSharedMemoryAmiciNodi");
@@ -425,11 +439,16 @@ int main(int argc, char const *argv[])
 #if (ENABLE_TEST)
     printf("+ idSharedMemoryAmiciNodi creato con successo - %d\n", idSharedMemoryAmiciNodi);
 #endif
-    puntatoreSharedMemoryAmiciNodi = (int *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
+    puntatoreSharedMemoryAmiciNodi = (amico *)shmat(idSharedMemoryAmiciNodi, NULL, 0);
     if (errno == EINVAL)
     {
         perror("- shmat idSharedMemoryAmiciNodi");
         exit(EXIT_FAILURE);
+    }
+
+    /*inizializzo array per ogni nodo*/
+    for (i = 0; i < SO_NODES_NUM; i++){
+        puntatoreSharedMemoryAmiciNodi[i].myFriend = (unsigned int *) calloc (SO_FRIENDS_NUM * 2, sizeof(unsigned int));
     }
     /*SEMAFORI*/
     /*modifica cosmo*/
@@ -609,6 +628,8 @@ int main(int argc, char const *argv[])
             /*eh invece si'*/
             puntatoreSharedMemoryTuttiNodi[i + 1].budget = 0;
             puntatoreSharedMemoryTuttiNodi[i + 1].nodoPid = childPid;
+            puntatoreSharedMemoryAmiciNodi[i].num = i;
+            puntatoreSharedMemoryAmiciNodi[i].soFriends = SO_FRIENDS_NUM;
             break;
         }
     }
@@ -810,7 +831,7 @@ int main(int argc, char const *argv[])
 
     master = MASTER_CONTINUE;
     /*modifica cosmo*/
-    amico = 1;
+    friend = 1;
     maxNodi = 0;
     transazioniPerse = 0;
 
@@ -843,7 +864,8 @@ int main(int argc, char const *argv[])
                     /*creo il nuovo nodo*/
                     switch(childPid = fork()){
                         case -1:
-                        /*stampo errore*/
+                        perror("errore su nodo amico nato successivamente\n");
+                        exit(EXIT_FAILURE);
                         break;
                         case 0:
                             
@@ -869,7 +891,9 @@ int main(int argc, char const *argv[])
                             operazioniSemaforo.sem_op = SO_TP_SIZE;
                             semopRisposta = semop(idSemaforoAccessoNodoCodaMessaggi, &operazioniSemaforo, 1);
 
+                            puntatoreSharedMemoryAmiciNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].num = puntatoreSharedMemoryTuttiNodi[0].nodoPid;
                             assegnoAmici(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
+                            miAssegno(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
                             #if(ENABLE_TEST == 0)
                                 printf("^^^^^^^^^^^^^^^Ho creato un nuovo nodo^^^^^^^^^^^^^\n");
                             #endif
@@ -1045,7 +1069,6 @@ int main(int argc, char const *argv[])
         perror("- shmctl idSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
     }
-    printf("+ Risorse deallocate correttamente\n");
     return 0; /* == exit(EXIT_SUCCESS)*/
 }
 
@@ -1361,27 +1384,40 @@ void stampaLibroMastro(){
 }*/
 /*modifica cosmo*/
 void assegnoAmici(int mioOrdine){
-     
-#if(ENABLE_TEST == 0)
-/*stampo l'ultimo nodo creato e i suoi nuovi amici*/
-    printf("Nodo [%d][%d] con amici:\n",mioOrdine, puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].nodoPid);
-#endif
-    for(j = 0; j < SO_FRIENDS_NUM; j++){ 
-        amico++;
-        if(amico == mioOrdine){
-            amico++;
-        }
-        if(amico > puntatoreSharedMemoryTuttiNodi[0].nodoPid){
-                amico = 1;
-        }
+    int amici;
+    clock_gettime(CLOCK_REALTIME, &timespecRand);
+    srand(timespecRand.tv_nsec);
+    for(j = 0; j < puntatoreSharedMemoryAmiciNodi[mioOrdine].soFriends; j++){ 
+        amici = rand() % (puntatoreSharedMemoryAmiciNodi[mioOrdine].soFriends - 1 + 1) + 1;
+        int h;
+    for (h = j; h >= 0; h--){
+            while (amici == puntatoreSharedMemoryAmiciNodi[mioOrdine].myFriend[h]){
+                amici = rand() % (puntatoreSharedMemoryAmiciNodi[mioOrdine].soFriends - 1 + 1) + 1;
+            }
+    }
+    while (amici == mioOrdine)
+    {
+        amici = rand() % (puntatoreSharedMemoryAmiciNodi[mioOrdine].soFriends - 1 + 1) + 1;
+    }
+    
+        puntatoreSharedMemoryAmiciNodi[mioOrdine].myFriend[j] = amici;
+        printf("NODO[%d] ha amico %d in pos %d\n", mioOrdine, amici, j);
+    }
+    printf("\n");
+}
 
-        puntatoreSharedMemoryAmiciNodi[(mioOrdine-1) * SO_FRIENDS_NUM + j] = amico;
-       
-#if(ENABLE_TEST == 0)     
-        printf("[%d]",puntatoreSharedMemoryAmiciNodi[(mioOrdine-1) * SO_FRIENDS_NUM + j]);
-#endif
-#if(ENABLE_TEST == 0)
-            printf("\n");
-#endif
+void miAssegno(int newFriend){
+    int num;
+    int chi;
+    clock_gettime(CLOCK_REALTIME, &timespecRand);
+    srand(timespecRand.tv_nsec);
+    num = rand() % (SO_NODES_NUM - 1 + 1) + 1;
+    for (int y = 0; y < num; y++){
+        chi = rand() % (SO_NODES_NUM - 1 + 1) + 1;
+        while(chi == newFriend){
+            chi = rand() % (SO_NODES_NUM - 1 + 1) + 1;
+        }
+        puntatoreSharedMemoryAmiciNodi[chi].soFriends++;
+        puntatoreSharedMemoryAmiciNodi[chi].myFriend[puntatoreSharedMemoryAmiciNodi[chi].soFriends] = newFriend;
     }
 }
