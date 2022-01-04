@@ -1,16 +1,17 @@
-bozza:	process_chain Nodo Utente 
-	gcc process_chain.o Master.c -o MasterBozza.out
+all: NodoBozza.out UtenteBozza.out MasterBozza.out
 
-Utente:	process_chain
-	gcc process_chain.o Utente.c -o UtenteBozza.out
+MasterBozza.out:	process_chain.c Master.c
+	gcc process_chain.c Master.c -o MasterBozza.out
 
-Nodo:
-	gcc process_chain.o Nodo.c -o NodoBozza.out
+UtenteBozza.out:	process_chain.c Utente.c
+	gcc process_chain.c Utente.c -o UtenteBozza.out
 
-process_chain:
-	gcc -c process_chain.c
+NodoBozza.out: Nodo.c process_chain.c
+	gcc process_chain.c Nodo.c -o NodoBozza.out
 
-run:  
+play: all run clean
+
+run:
 	./MasterBozza.out
 
 clean: 

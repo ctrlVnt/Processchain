@@ -35,8 +35,18 @@
     return multmem;
 }*/
 
+/*float probNodNum(float utenti, float nodi, float tp, float retry){
+    float x = ((utenti / nodi) - (tp / retry));
+    return x;
+}*/
+
+float probNodNum(float utenti, float nodi, float tp, float hops){
+    float x = (nodi / utenti);
+    return x;
+}
+
 int main(){
-    printf("alloco memoria: %d\n", probNodNum(100, 30, 10, 8));
+    printf("alloco memoria: %f\n", probNodNum(1000, 99, 10, 8));
 }
 
 /*Assumo che verranno creati almeno 25 nodi (100 / 4 byte)
@@ -45,6 +55,3 @@ int main(){
 * più hai la transation pool grande e meno transazioni creerai per la coda occupata
 * meno retry hai e più creerai transazioni
  */
-int probNodNum(int utenti, int nodi, int tp, int retry){
-    return ((utenti / nodi) - (tp / retry)) + 100;
-}

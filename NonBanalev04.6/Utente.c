@@ -483,7 +483,7 @@ int main(int argc, char const *argv[])
                 msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
                 if(errno == EAGAIN && msgsndRisposta == -1)
                 {
-                    /*printf("Coda scelta occupata...\n");*/
+                   
                    soRetry--;
                     
                 }
