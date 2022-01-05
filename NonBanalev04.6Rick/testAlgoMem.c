@@ -40,13 +40,13 @@
     return x;
 }*/
 
-float probNodNum(float utenti, float nodi, float tp, float hops){
-    float x = (nodi / utenti);
+float probNodNum(float utenti, float nodi, float tp){
+    float x = (utenti / nodi) / 2;
     return x;
 }
 
 int main(){
-    printf("alloco memoria: %f\n", probNodNum(1000, 99, 10, 8));
+    printf("alloco memoria: %f\n", probNodNum(100, 99, 1000));
 }
 
 /*Assumo che verranno creati almeno 25 nodi (100 / 4 byte)
