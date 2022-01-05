@@ -41,6 +41,8 @@ int idSharedMemoryLibroMastro;
 transazione *puntatoreSharedMemoryLibroMastro;
 /*ID SM dove si trova l'indice del libro mastro*/
 int idSharedMemoryIndiceLibroMastro;
+/*semaforo che regola l'accesso ai limiti delle risorse*/
+int idSemaforoLimiteRisorse;
 /*Dopo l'attach, punta alla porzione di memoria condivisa dove si trova effettivamente l'indice del libro mastro*/
 int *puntatoreSharedMemoryIndiceLibroMastro;
 /*id Shared memory dove ci sono gli amici del nodo*/
@@ -89,6 +91,7 @@ int riempimentoTpStop;
 int bloccoRiempibile;
 /*indice ausiliario*/
 int i;
+int limiteRisorse;
 
 /*variabili strutture per gestire segnali*/
 
@@ -224,6 +227,10 @@ int main(int argc, char const *argv[])
 #if (ENABLE_TEST)
     printf("N idCodaMessaggiProcessoMaster: %d\n", idCodaMessaggiProcessoMaster);
 #endif
+    idSemaforoLimiteRisorse = parseIntFromParameters(argv, 14);
+#if (ENABLE_TEST)
+    printf("N idCodaMessaggiProcessoMaster: %d\n", idCodaMessaggiProcessoMaster);
+#endif
 
     /*imposto l'handler*/
     sigactionSigusr1Nuova.sa_flags = 0;
@@ -269,6 +276,7 @@ int main(int argc, char const *argv[])
     int primaTransazioneRicevuta = 1;
     int invioAmico = 1;
     int msgsndRisposta;
+    limiteRisorse = 1;
     /*ciclo di vita del nodo*/
     while (node)
     {
@@ -287,8 +295,9 @@ int main(int argc, char const *argv[])
                 {
                     messaggioInviato.mtype = 5;
                     messaggioInviato.transazione = messaggioRicevuto.transazione;
-                    puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].transazioniPendenti++;
+                    /*puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].transazioniPendenti++;*/
                     messaggioInviato.hops = getSoHops();
+                    printf("\n\nHOPS NODO MESSAGGIO RICEVUTO %d\n", messaggioInviato.hops);
 
                     errno = 0;
                     idCoda = scegliAmicoNodo(numeroOrdine + 1);
@@ -299,29 +308,52 @@ int main(int argc, char const *argv[])
                         semopRisposta = semReserve(idSemaforoAccessoMiaCodaMessaggi, -1, (idCoda - 1), IPC_NOWAIT);
                         if(semopRisposta == -1 && errno == EAGAIN)
                         {
-                            printf("ERRORE SHOPS %d\n", getpid());
+                            printf("ERRORE SHOPS NODOOOOOOOOO pid%d\n", getpid());
+                            printf("Con valore SOHOPS %d\n", messaggioInviato.hops);
                             messaggioInviato.hops--;
-                            if(messaggioInviato.hops-- == 0)
+                            if(messaggioInviato.hops == 0)
                             {
-                                msgsndRisposta = msgsnd(idCodaMessaggiProcessoMaster, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
-                                errno = 0;
+                                semopRisposta = semReserve(idSemaforoLimiteRisorse, -1, 0, IPC_NOWAIT);
+                                if(limiteRisorse == 1 && semopRisposta != -1 && errno != EAGAIN)
+                                {
+                                    printf("NODO risorse OK hops NO -> INVIO A MASTER\n");
+                                    msgsndRisposta = msgsnd(idCodaMessaggiProcessoMaster, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
+                                    semRelease(idMiaMiaCodaMessaggi, 1, numeroOrdine, 0);
+                                    /**/
+                                    errno = 0;
+                                    invioAmico = 0;
+                                    /**/
+                                }
+                                else
+                                {
+                                    printf("LIMITE RISOSRSE RAGGIUNTO NODO.c riga 322\n");
+                                    limiteRisorse = 0;
+                                    errno = 0;
+                                    break;/*limite raggiunto quindi la transazioen la accetto come mia*/
+                                }
                             }
                             else
                             {
                                 idCoda = scegliAmicoNodo(idCoda);
-                                printf("AMICO SCELTO: %d\n", idCoda);
+                                printf("AMICO SCELTO NODO: %d\n", idCoda);
                             }
                         }
                         else
                         {
+                            printf("AMICO TROVATO!!!!! UIII\n");
                             msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggioInviato, sizeof(messaggioInviato.transazione) + sizeof(messaggioInviato.hops), 0);
+                            semRelease(idMiaMiaCodaMessaggi, 1, numeroOrdine, 0);
+                            /**/
+                            invioAmico = 0;
+                            /**/
                             errno = 0;
                         }
                     } while (semopRisposta == -1 && errno == EAGAIN && node);
                     
-                    semRelease(idMiaMiaCodaMessaggi, 1, numeroOrdine, 0);
-                    invioAmico = 0;
-                    continue;
+                    if(invioAmico == 0)
+                    {
+                        continue;
+                    }
                 }
             }
             /**/
@@ -428,28 +460,28 @@ int main(int argc, char const *argv[])
     /*Deallocazione delle risorse*/
     free(transactionPool);
     free(blocco);
-    eseguiDetachShm(puntatoreSharedMemoryAmiciNodi, "puntatoreSharedMemoryAmiciNodi");
+    eseguiDetachShm(puntatoreSharedMemoryAmiciNodi, "puntatoreSharedMemoryAmiciNodi N");
     /*shmdtRisposta = shmdt(puntatoreSharedMemoryAmiciNodi);
     if (shmdtRisposta == -1)
     {
         perror("shmdt puntatoreSharedMemoryAmiciNodi");
         exit(EXIT_FAILURE);
     }*/
-    eseguiDetachShm(puntatoreSharedMemoryIndiceLibroMastro, "puntatoreSharedMemoryIndiceLibroMastro");
+    eseguiDetachShm(puntatoreSharedMemoryIndiceLibroMastro, "puntatoreSharedMemoryIndiceLibroMastro N");
     /*shmdtRisposta = shmdt(puntatoreSharedMemoryIndiceLibroMastro);
     if (shmdtRisposta == -1)
     {
         perror("shmdt puntatoreSharedMemoryIndiceLibroMastro");
         exit(EXIT_FAILURE);
     }*/
-    eseguiDetachShm(puntatoreSharedMemoryLibroMastro, "puntatoreSharedMemoryLibroMastro");
+    eseguiDetachShm(puntatoreSharedMemoryLibroMastro, "puntatoreSharedMemoryLibroMastro N");
     /*shmdtRisposta = shmdt(puntatoreSharedMemoryLibroMastro);
     if (shmdtRisposta == -1)
     {
         perror("shmdt puntatoreSharedMemoryLibroMastro");
         exit(EXIT_FAILURE);
     }*/
-    eseguiDetachShm(puntatoreSharedMemoryTuttiNodi, "puntatoreSharedMemoryTuttiNodi");
+    eseguiDetachShm(puntatoreSharedMemoryTuttiNodi, "puntatoreSharedMemoryTuttiNodi N");
     /*shmdtRisposta = shmdt(puntatoreSharedMemoryTuttiNodi);
     if (shmdtRisposta == -1)
     {

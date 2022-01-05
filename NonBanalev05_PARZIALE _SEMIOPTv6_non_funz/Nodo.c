@@ -289,8 +289,8 @@ int main(int argc, char const *argv[])
             printf("[%d] ha effettuato la msgrcv dalla coda ID[%d] con risposta: %d\n", getpid(), puntatoreSharedMemoryTuttiNodi[numeroOrdine + 1].mqId, msgrcvRisposta);
 #endif
             /**/
-            if(primaTransazioneRicevuta == 0)
-            {
+          /*  if(primaTransazioneRicevuta == 0)
+            {*/
                 if(invioAmico == 1 && msgrcvRisposta != -1)
                 {
                     messaggioInviato.mtype = 5;
@@ -354,7 +354,7 @@ int main(int argc, char const *argv[])
                         continue;
                     }
                 }
-            }
+          /*  }*/
             /**/
             if (errno != EAGAIN && msgrcvRisposta != -1)
             {
