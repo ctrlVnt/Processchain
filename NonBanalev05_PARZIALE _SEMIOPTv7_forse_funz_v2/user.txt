@@ -1,0 +1,58 @@
+getBudgetUtente(&indiceLibroMastroRiservato);
+        transazioneInvio.receiver = scegliUtenteRandom(numeroTotaleUtenti);
+        if (transazioneInvio.receiver == -1)
+        {
+            break;
+        }
+        transazioneInvio.reward = 0;
+        idCoda = scegliNumeroNodo(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
+        if (puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget >= 2)
+        {
+            /*tentativo riservare un posto nella coda*/
+            semopRisposta = semReserve(idSemaforoAccessoCodeMessaggi, -1, (idCoda - 1), IPC_NOWAIT);
+            if (semopRisposta == -1 && errno == EAGAIN)
+            {
+                /*caso coda TP del nodo scelto occupata*/
+                /*ESTRAIAMO UN AMICO DEL NODO CHE HA IL SEMAFORO PIENO CERCHIAIMO DI INVIARE A LUI E RIPETIAMO*/
+                messaggio.hops--;
+                attesaNonAttiva(getSoMinTransGenNsec(), getSoMaxTransGenNsec());
+            }
+            else
+            {
+#if (ENABLE_TEST)
+                printf("[%d] ho abbastanza budget %d\n", getpid(), puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
+#endif
+                q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
+                transazioneInvio.reward = (q * getSoReward()) / 100;
+                if (transazioneInvio.reward == 0)
+                {
+                    transazioneInvio.reward = 1;
+                }
+                transazioneInvio.quantita = q - transazioneInvio.reward;
+
+                clock_gettime(CLOCK_REALTIME, &transazioneInvio.timestamp);
+                messaggio.mtype = getpid();
+                messaggio.transazione = transazioneInvio;
+                messaggio.hops = getSoHops();
+                msgsndRisposta = msgsnd(puntatoreSharedMemoryTuttiNodi[idCoda].mqId, &messaggio, sizeof(messaggio.transazione) + sizeof(messaggio.hops), 0);
+                if (errno == EAGAIN && msgsndRisposta == -1)
+                {
+#if (ENABLE_TEST)
+                    printf("Coda scelta occupata...\n");
+#endif
+                        setSoRetry(getSoRetry() - 1);
+                }
+                else if (msgsndRisposta != -1)
+                {
+                    //printf("[%d] messaggio inviato con risposta %d\n", getpid(), msgsndRisposta);
+                    puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget -= transazioneInvio.quantita;
+                    attesaNonAttiva(getSoMinTransGenNsec(), getSoMaxTransGenNsec());
+                }
+            }
+        }
+        else
+        {
+            // printf("\nFACCIO SO RETRY\n");
+            setSoRetry(getSoRetry() - 1);
+            attesaNonAttiva(getSoMinTransGenNsec(), getSoMaxTransGenNsec());
+        }
