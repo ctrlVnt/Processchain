@@ -313,6 +313,7 @@ int main(int argc, char const *argv[])
                             messaggioInviato.hops--;
                             if(messaggioInviato.hops == 0)
                             {
+                                errno = 0;
                                 semopRisposta = semReserve(idSemaforoLimiteRisorse, -1, 0, IPC_NOWAIT);
                                 if(limiteRisorse == 1 && semopRisposta != -1 && errno != EAGAIN)
                                 {
