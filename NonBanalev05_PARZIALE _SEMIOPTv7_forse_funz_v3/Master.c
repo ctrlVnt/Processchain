@@ -1233,7 +1233,7 @@ void stampaTerminale(int flag)
             /**/
         }
         
-        printf("Somma totale budget NODI : %d\n", sommaBudgetUtente);
+        printf("Somma totale budget UTENTI : %d\n", sommaBudgetUtente);
         sommaBudgetUtente = 0;
         
     }
