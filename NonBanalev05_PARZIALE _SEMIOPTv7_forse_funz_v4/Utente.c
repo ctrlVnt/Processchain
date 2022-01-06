@@ -370,7 +370,9 @@ int getQuantitaRandom(int max)
     int result;
     clock_gettime(CLOCK_REALTIME, &timespecRand);
     srand(timespecRand.tv_nsec);
-    result = rand() % (max - 2 + 1) + 2;
+    result = rand() % (max - 2
+    
+     + 1) + 2;
 
     if(result >= (max / 2) && max > 3)
     {

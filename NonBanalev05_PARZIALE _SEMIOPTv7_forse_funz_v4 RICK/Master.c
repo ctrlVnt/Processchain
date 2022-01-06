@@ -145,7 +145,7 @@ int main(int argc, char const *argv[])
 
     /*Inizializzazione array per stampa*/
     printUtenti = (int *) calloc (getSoUsersNum() * 2, sizeof(int));
-    printNodi = (int *) calloc (getSoNodesNum() * 2, sizeof (int));
+    printNodi = (int *) calloc ((q * getSoNodesNum()) * 2, sizeof (int));
     indiceStampaUtenti = 0;
     indiceStampaNodi = 0;
     utenteMax.budget = 0;
@@ -818,6 +818,8 @@ int main(int argc, char const *argv[])
                                 perror("ERRORE SEND");
                             }
                             puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid + 1].mqId =  msggetRisposta;
+                            printNodi[(puntatoreSharedMemoryTuttiNodi[0].nodoPid + 1)] = childPid;
+                            printNodi[(puntatoreSharedMemoryTuttiNodi[0].nodoPid + 1) + (q * getSoNodesNum())] = 0;
                             break;
                     }
 
@@ -1253,14 +1255,14 @@ void stampaTerminale(int flag)
     /*rimepimento array nodi*/
     for (indiceStampaNodi; indiceStampaNodi <= *(puntatoreSharedMemoryIndiceLibroMastro); indiceStampaNodi++)
     {
-        for (contatoreStampa = 0; contatoreStampa < getSoNodesNum(); contatoreStampa++){
+        for (contatoreStampa = 0; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++){
             if (puntatoreSharedMemoryLibroMastro[indiceStampaNodi * getSoBlockSize() +  (getSoBlockSize() - 1)].receiver == printNodi[contatoreStampa]){
-                printNodi[contatoreStampa + getSoNodesNum()] += puntatoreSharedMemoryLibroMastro[indiceStampaNodi * getSoBlockSize() + (getSoBlockSize() - 1)].quantita;
+                printNodi[contatoreStampa + (q * getSoNodesNum())] += puntatoreSharedMemoryLibroMastro[indiceStampaNodi * getSoBlockSize() + (getSoBlockSize() - 1)].quantita;
             }
         }
     }
 
-    if (getSoUsersNum() < 20)
+    if (getSoUsersNum() < 200)
     {
         printf("\nUTENTE[PID] | BILANCIO[INT]\n");
         for (contatoreStampa = 0; contatoreStampa < getSoUsersNum(); contatoreStampa++){
@@ -1310,11 +1312,13 @@ void stampaTerminale(int flag)
         master = MASTER_STOP;
     }
     
-    if (getSoNodesNum() < 20)
+    if (puntatoreSharedMemoryTuttiNodi[0].nodoPid < 200)
     {
         printf("\nNODO[PID] | BILANCIO[INT]\n");
-        for (contatoreStampa = 0; contatoreStampa < getSoNodesNum(); contatoreStampa++){
-            printf("%09d\t%09d\n", printNodi[contatoreStampa], printNodi[contatoreStampa + getSoNodesNum()]);
+        for (contatoreStampa = 0; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++){
+            if (printNodi[contatoreStampa] != 0){
+                printf("%09d\t%09d\n", printNodi[contatoreStampa], printNodi[contatoreStampa + (q * getSoNodesNum())]);
+            }
         } 
     }
     else
@@ -1322,17 +1326,17 @@ void stampaTerminale(int flag)
         /* nodoMax.budget = 0;
             nodoMin.budget = SO_BUDGET_INIT;*/
 
-        for (contatoreStampa = 0; contatoreStampa < getSoNodesNum(); contatoreStampa++)
+        for (contatoreStampa = 0; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
         {
-            if (printNodi[contatoreStampa + getSoNodesNum()] > nodoMax.budget && printNodi[contatoreStampa + getSoNodesNum()] != 0)
+            if (printNodi[contatoreStampa + (q * getSoNodesNum())] > nodoMax.budget && printNodi[contatoreStampa + (q * getSoNodesNum())] != 0)
             {
                 nodoMax.nodoPid = printNodi[contatoreStampa];
-                nodoMax.budget = printNodi[contatoreStampa + getSoNodesNum()];
+                nodoMax.budget = printNodi[contatoreStampa + (q * getSoNodesNum())];
             }
-            if (printNodi[contatoreStampa + getSoNodesNum()] < nodoMin.budget)
+            if (printNodi[contatoreStampa + (q * getSoNodesNum())] < nodoMin.budget)
             {
                 nodoMin.nodoPid = printNodi[contatoreStampa];
-                nodoMin.budget = printNodi[contatoreStampa + getSoNodesNum()];
+                nodoMin.budget = printNodi[contatoreStampa + (q * getSoNodesNum())];
             }
         }
         printf("\nNODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
@@ -1340,7 +1344,7 @@ void stampaTerminale(int flag)
         printf("%09d\t%09d <-- NODO con budget MINORE\n", nodoMin.nodoPid, nodoMin.budget);
         printf("\nTOTALE NODI: %d\n", puntatoreSharedMemoryTuttiNodi[0].nodoPid);
     }
-    printf("*******\nNumero di blocchi: %d\n\n", *(puntatoreSharedMemoryIndiceLibroMastro));
+    printf("***********************\nNumero di blocchi: %d\n\n", *(puntatoreSharedMemoryIndiceLibroMastro));
 }
 
 void outputLibroMastro()

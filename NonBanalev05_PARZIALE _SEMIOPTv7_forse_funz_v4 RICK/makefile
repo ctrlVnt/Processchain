@@ -6,13 +6,13 @@ CFLAGS=  -std=c89 -Wpedantic
 all: NodoBozza.out UtenteBozza.out MasterBozza.out
 
 MasterBozza.out:	process_chain.c Master.c
-	$(CC) $^ -o MasterBozza.out
+	$(CC) $^ -o $@
 
 UtenteBozza.out:	process_chain.c Utente.c
-	$(CC) $^ -o UtenteBozza.out
+	$(CC) $^ -o $@
 
 NodoBozza.out: Nodo.c process_chain.c
-	$(CC) $^ -o NodoBozza.out
+	$(CC) $^ -o $@
 
 play: all run clean
 

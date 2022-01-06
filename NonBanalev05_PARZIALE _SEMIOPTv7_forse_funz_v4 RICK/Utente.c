@@ -118,6 +118,7 @@ int main(int argc, char const *argv[])
     int idCoda;
     int semopRisposta;
 
+    srand(getpid());
 #if (ENABLE_TEST)
     printf("\t%s: utente[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
 #endif
@@ -325,8 +326,6 @@ int scegliUtenteRandom(int max)
 {
     int pidRandom;
     int iRandom;
-    clock_gettime(CLOCK_REALTIME, &timespecRand);
-    srand(timespecRand.tv_nsec);
     do
     {
         if (puntatoreSharedMemoryTuttiUtenti[0].userPid > 1)
@@ -356,8 +355,6 @@ int scegliNumeroNodo(int max)
     printf("Scelgo coda...\n");
 #endif
     int iCoda;
-    clock_gettime(CLOCK_REALTIME, &timespecRand);
-    srand(timespecRand.tv_nsec);
     iCoda = rand() % max + 1;
 #if (ENABLE_TEST)
     printf("Ho scelto coda%d\n", iCoda);
@@ -368,8 +365,6 @@ int scegliNumeroNodo(int max)
 int getQuantitaRandom(int max)
 {
     int result;
-    clock_gettime(CLOCK_REALTIME, &timespecRand);
-    srand(timespecRand.tv_nsec);
     result = rand() % (max - 2 + 1) + 2;
 
     if(result >= (max / 2) && max > 3)
@@ -681,7 +676,7 @@ int scegliAmicoNodo(int idNodo)
     printf("%d e ha scelto a chi inviare %d che ha pid %d\n", puntatoreSharedMemoryTuttiNodi[idNodo].nodoPid, amicoRandom, puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryAmiciNodi[(idNodo - 1) * (getSoFriendsNum() * 2 + 1) + amicoRandom]].nodoPid);
 #endif
     amicoRandom = scegliNumeroNodo(numAmici);
-    return puntatoreSharedMemoryAmiciNodi[(idNodo - 1) * (getSoFriendsNum() * 2 + 1) + amicoRandom];
+    return puntatoreSharedMemoryAmiciNodi[(idNodo - 1) * (getSoFriendsNum() * 2 + 1) + amicoRandom - 1];
     /*sleep(1000);*/
     /*puntatoreSharedMemoryAmiciNodi[idNodo * (getSoFriendsNum()*2 + 1) + scegliNumeroNodo(puntatoreSharedMemoryAmiciNodi[idNodo * (getSoFriendsNum()*2 + 1)])];*/
 }

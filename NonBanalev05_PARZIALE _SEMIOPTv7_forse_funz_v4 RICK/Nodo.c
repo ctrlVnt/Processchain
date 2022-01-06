@@ -110,6 +110,8 @@ int scegliNumeroNodo(int max);
 
 int main(int argc, char const *argv[])
 {
+
+    srand(getpid());
 #if (ENABLE_TEST)
     printf("%s: nodo[%d] e ha ricevuto #%d parametri.\n", argv[0], getpid(), argc);
 #endif
@@ -620,9 +622,6 @@ int scegliNumeroNodo(int max)
     printf("Scelgo coda...\n");
 #endif
     int iCoda;
-    struct timespec timespecRand;
-    clock_gettime(CLOCK_REALTIME, &timespecRand);
-    srand(timespecRand.tv_nsec);
     iCoda = rand() % max + 1;
 #if (ENABLE_TEST)
     printf("Ho scelto coda%d\n", iCoda);
