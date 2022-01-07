@@ -1233,11 +1233,7 @@ void stampaTerminale(int flag)
                     printUtenti[contatoreStampa].budget += puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita;
                 }
                 if (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].sender == printUtenti[contatoreStampa].userPid){
-                    printf("SENDER: %d, quantità:%d + reward:%d  \n",printUtenti[contatoreStampa].userPid, puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita, puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].reward);
                     printUtenti[contatoreStampa].budget -= (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita + puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].reward);
-                }
-                if (printUtenti[contatoreStampa].budget < 0){
-                    printf ("AIA SONO NEGATIVO [%d] con: %d \n", printUtenti[contatoreStampa].userPid, printUtenti[contatoreStampa].budget);
                 }
             }
         }
@@ -1275,7 +1271,7 @@ void stampaTerminale(int flag)
             {
                 utenteMax = printUtenti[contatoreStampa];
             }
-            if (printUtenti[contatoreStampa].budget <= utenteMin.budget)
+            if (printUtenti[contatoreStampa].budget <= utenteMin.budget && printUtenti[contatoreStampa].budget >= 0)
             {
                 utenteMin = printUtenti[contatoreStampa];
             }
