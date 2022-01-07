@@ -119,8 +119,8 @@ utente utenteMax;
 utente utenteMin;
 nodo nodoMax;
 nodo nodoMin;
-int* printUtenti;
-int* printNodi;
+utente* printUtenti;
+nodo* printNodi;
 int indiceStampaUtenti;
 int indiceStampaNodi;
 int indicePassaCelleLibroStampa;
@@ -144,8 +144,8 @@ int main(int argc, char const *argv[])
     nextFriend = 0;
 
     /*Inizializzazione array per stampa*/
-    printUtenti = (int *) calloc (getSoUsersNum() * 2, sizeof(int));
-    printNodi = (int *) calloc ((q * getSoNodesNum()) * 2, sizeof (int));
+    printUtenti = (utente *) calloc (getSoUsersNum(), sizeof(utente));
+    printNodi = (nodo *) calloc ((q * getSoNodesNum()), sizeof (nodo));
     indiceStampaUtenti = 0;
     indiceStampaNodi = 0;
 
@@ -467,8 +467,8 @@ int main(int argc, char const *argv[])
             /*eh invece si'*/
             puntatoreSharedMemoryTuttiNodi[i + 1].budget = 0;
             puntatoreSharedMemoryTuttiNodi[i + 1].nodoPid = childPid;
-            printNodi[i] = childPid;
-            printNodi[i + (getSoNodesNum() * q)] = 0;
+            printNodi[i].nodoPid = childPid;
+            printNodi[i].budget = 0;
             break;
         }
     }
@@ -651,8 +651,9 @@ int main(int argc, char const *argv[])
             puntatoreSharedMemoryTuttiUtenti[indiceNodi + 1].userPid = childPid;
             puntatoreSharedMemoryTuttiUtenti[indiceNodi + 1].stato = USER_OK;
             puntatoreSharedMemoryTuttiUtenti[indiceNodi + 1].budget = getSoBudgetInit();
-            printUtenti[indiceNodi] = childPid;
-            printUtenti[indiceNodi + getSoUsersNum()] = getSoBudgetInit();
+            printUtenti[indiceNodi].userPid = childPid;
+            printUtenti[indiceNodi].stato = USER_OK;
+            printUtenti[indiceNodi].budget = getSoBudgetInit();
             /**/
 #if (ENABLE_TEST)
             // printf("+ %d UTENTE[%d] registrato correttamente\n", i, childPid);
@@ -699,10 +700,10 @@ int main(int argc, char const *argv[])
     while (master)
     {
         /*TODO*/
-        sleep(1);
         /*stampo INFO */
         stampaTerminale(0);
         /**/
+        sleep(1);
         /*verifico la capienza del libro mastro!*/
         if (puntatoreSharedMemoryIndiceLibroMastro[0] >= getSoRegistrySize())
         {
@@ -813,8 +814,8 @@ int main(int argc, char const *argv[])
                                 perror("ERRORE SEND");
                             }
                             puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid + 1].mqId =  msggetRisposta;
-                            printNodi[(puntatoreSharedMemoryTuttiNodi[0].nodoPid + 1)] = childPid;
-                            printNodi[(puntatoreSharedMemoryTuttiNodi[0].nodoPid + 1) + (q * getSoNodesNum())] = 0;
+                            printNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].nodoPid = childPid;
+                            printNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].budget = 0;
                             break;
                     }
 
@@ -1192,9 +1193,9 @@ void stampaTerminale(int flag)
     /**/
 
     utenteMax.budget = 0;
-    utenteMin.budget = printUtenti[getSoUsersNum()];
+    utenteMin.budget = printUtenti[0].budget;
     nodoMax.budget = 0;
-    nodoMin.budget = printNodi[getSoNodesNum() * q];
+    nodoMin.budget = printNodi[0].budget;
 
     int contatoreStampa;
     int contPremat;
@@ -1224,15 +1225,19 @@ void stampaTerminale(int flag)
     /*stampo bilancio utenti*/
 
     /*riempimento array utenti*/
-    for (indiceStampaUtenti; indiceStampaUtenti <= *(puntatoreSharedMemoryIndiceLibroMastro); indiceStampaUtenti++)
+    for (indiceStampaUtenti; indiceStampaUtenti < *(puntatoreSharedMemoryIndiceLibroMastro); indiceStampaUtenti++)
     {
         for (contatoreStampa = 0; contatoreStampa < getSoUsersNum(); contatoreStampa++){
             for (indicePassaCelleLibroStampa = 0; indicePassaCelleLibroStampa < getSoBlockSize() - 1; indicePassaCelleLibroStampa++){
-                if (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].receiver == printUtenti[contatoreStampa]){
-                    printUtenti[contatoreStampa + getSoUsersNum()] += puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita;
+                if (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].receiver == printUtenti[contatoreStampa].userPid){
+                    printUtenti[contatoreStampa].budget += puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita;
                 }
-                if (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].sender == printUtenti[contatoreStampa]){
-                    printUtenti[contatoreStampa + getSoUsersNum()] -= (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita + puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].reward);
+                if (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].sender == printUtenti[contatoreStampa].userPid){
+                    printf("SENDER: %d, quantità:%d + reward:%d  \n",printUtenti[contatoreStampa].userPid, puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita, puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].reward);
+                    printUtenti[contatoreStampa].budget -= (puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].quantita + puntatoreSharedMemoryLibroMastro[indiceStampaUtenti * getSoBlockSize() + indicePassaCelleLibroStampa].reward);
+                }
+                if (printUtenti[contatoreStampa].budget < 0){
+                    printf ("AIA SONO NEGATIVO [%d] con: %d \n", printUtenti[contatoreStampa].userPid, printUtenti[contatoreStampa].budget);
                 }
             }
         }
@@ -1242,8 +1247,8 @@ void stampaTerminale(int flag)
     for (indiceStampaNodi; indiceStampaNodi <= *(puntatoreSharedMemoryIndiceLibroMastro); indiceStampaNodi++)
     {
         for (contatoreStampa = 0; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++){
-            if (puntatoreSharedMemoryLibroMastro[indiceStampaNodi * getSoBlockSize() +  (getSoBlockSize() - 1)].receiver == printNodi[contatoreStampa]){
-                printNodi[contatoreStampa + (q * getSoNodesNum())] += puntatoreSharedMemoryLibroMastro[indiceStampaNodi * getSoBlockSize() + (getSoBlockSize() - 1)].quantita;
+            if (puntatoreSharedMemoryLibroMastro[indiceStampaNodi * getSoBlockSize() +  (getSoBlockSize() - 1)].receiver == printNodi[contatoreStampa].nodoPid){
+                printNodi[contatoreStampa].budget += puntatoreSharedMemoryLibroMastro[indiceStampaNodi * getSoBlockSize() + (getSoBlockSize() - 1)].quantita;
             }
         }
     }
@@ -1256,7 +1261,7 @@ void stampaTerminale(int flag)
             {
                 contPremat++;
             }
-            printf("%09d\t%09d\n", printUtenti[contatoreStampa], printUtenti[contatoreStampa + getSoUsersNum()]);
+            printf("%09d\t%09d\n", printUtenti[contatoreStampa].userPid, printUtenti[contatoreStampa].budget);
         }     
     }
     else
@@ -1266,15 +1271,13 @@ void stampaTerminale(int flag)
 
         for (contatoreStampa = 0; contatoreStampa < getSoUsersNum(); contatoreStampa++)
         {
-            if (printUtenti[contatoreStampa + getSoUsersNum()] >= utenteMax.budget)
+            if (printUtenti[contatoreStampa].budget >= utenteMax.budget)
             {
-                utenteMax.userPid = printUtenti[contatoreStampa];
-                utenteMax.budget = printUtenti[contatoreStampa + getSoUsersNum()];
+                utenteMax = printUtenti[contatoreStampa];
             }
-            if (printUtenti[contatoreStampa + getSoUsersNum()] <= utenteMin.budget)
+            if (printUtenti[contatoreStampa].budget <= utenteMin.budget)
             {
-                utenteMin.userPid = printUtenti[contatoreStampa];
-                utenteMin.budget = printUtenti[contatoreStampa + getSoUsersNum()];
+                utenteMin = printUtenti[contatoreStampa];
             }
             if (puntatoreSharedMemoryTuttiUtenti[contatoreStampa + 1].stato == USER_KO)
             {
@@ -1302,9 +1305,7 @@ void stampaTerminale(int flag)
     {
         printf("\nNODO[PID] | BILANCIO[INT]\n");
         for (contatoreStampa = 0; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++){
-            if (printNodi[contatoreStampa] != 0){
-                printf("%09d\t%09d\n", printNodi[contatoreStampa], printNodi[contatoreStampa + (q * getSoNodesNum())]);
-            }
+            printf("%09d\t%09d\n", printNodi[contatoreStampa].nodoPid, printNodi[contatoreStampa].budget);
         } 
     }
     else
@@ -1314,15 +1315,13 @@ void stampaTerminale(int flag)
 
         for (contatoreStampa = 0; contatoreStampa < puntatoreSharedMemoryTuttiNodi[0].nodoPid; contatoreStampa++)
         {
-            if (printNodi[contatoreStampa + (q * getSoNodesNum())] >= nodoMax.budget)
+            if (printNodi[contatoreStampa].budget >= nodoMax.budget)
             {
-                nodoMax.nodoPid = printNodi[contatoreStampa];
-                nodoMax.budget = printNodi[contatoreStampa + (q * getSoNodesNum())];
+                nodoMax = printNodi[contatoreStampa];
             }
-            if (printNodi[contatoreStampa + (q * getSoNodesNum())] <= nodoMin.budget)
+            if (printNodi[contatoreStampa].budget <= nodoMin.budget)
             {
-                nodoMin.nodoPid = printNodi[contatoreStampa];
-                nodoMin.budget = printNodi[contatoreStampa + (q * getSoNodesNum())];
+                nodoMin = printNodi[contatoreStampa];
             }
         }
         printf("\nNODO[PID] | BILANCIO[INT] | TRANSAZIONI PENDENTI\n");
