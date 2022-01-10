@@ -25,6 +25,7 @@ I parametri della simulazione(comuni a tutti gli utenti):
 /****************************************/
 /***********/
 
+
 /*VARIABILI GLOBALI*/
 /*ID della SM degli'ID delle CODE di messaggi alla quale devo fare l'attach*/
 int idSharedMemoryTuttiNodi;
@@ -69,6 +70,10 @@ int limiteSistema;
 struct sigaction sigactionSigusr1Nuova;
 /*sigaction dove memorizzare lo stato precedente*/
 struct sigaction sigactionSigusr1Precedente;
+/*sigaction generica - uso generale*/
+struct sigaction actNuova;
+/*old sigaction generica - uso generale*/
+struct sigaction actPrecedente;
 /*maschera per SIGALARM*/
 sigset_t maskSetForSigusr1;
 /*specularmente per SIGUSR2*/
@@ -103,6 +108,7 @@ int getQuantitaRandom(int max);
 int getBudgetUtente(int indiceLibroMastroRiservato);
 int inviaTransazione(int flag);
 void avvisaPoiCambiaStato();
+void interruptHandler(int sigNum);
 /**********/
 
 int main(int argc, char const *argv[])
@@ -254,6 +260,8 @@ int main(int argc, char const *argv[])
     printf("\t[%d] inizia\n", getpid());
 #endif
 
+    /*printf("Imposto SIGINT a %d\n", impostaHandlerSaNoMask(&actNuova, &actPrecedente, SIGINT, interruptHandler));*/
+
     /*ridurre ancora il ciclo di vita*/
     while (user == UTENTE_CONTINUE && alrm == ALARM_CONTINUE)
     {
@@ -281,9 +289,9 @@ int main(int argc, char const *argv[])
         }
     }
 
-    #if(ENABLE_TEST)
-        printf("%d fa EXIT CON STATUS %d, alarm %d e budget %d\n", getpid(), user, alrm, puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
-    #endif
+#if (ENABLE_TEST)
+    printf("%d fa EXIT CON STATUS %d, alarm %d e budget %d\n", getpid(), user, alrm, puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
+#endif
 
     /*Deallocazione delle risorse*/
 
@@ -358,7 +366,7 @@ int getQuantitaRandom(int max)
     srand(timespecRand.tv_nsec);
     result = rand() % (max - 2 + 1) + 2;
 
-    if(result >= (max / 2) && max > 3)
+    if (result >= (max / 2) && max > 3)
     {
         result = result / 2;
     }
@@ -407,9 +415,9 @@ int inviaTransazione(int flag)
     /*imposto alcuni campi che so apriori*/
     m.mtype = getpid();
     m.hops = getSoHops();
-    #if(ENABLE_TEST)
-        printf("IMPOSTO SO HOPS %d\n", getSoHops());
-    #endif
+#if (ENABLE_TEST)
+    printf("IMPOSTO SO HOPS %d\n", getSoHops());
+#endif
     if (t.receiver != -1)
     {
         if (puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget >= 2)
@@ -453,9 +461,9 @@ int inviaTransazione(int flag)
                         break; /*esco dal ciclo*/
                     }
 
-                    #if(ENABLE_TEST)
-                        printf("Continuo il ciclo...\n");
-                    #endif
+#if (ENABLE_TEST)
+                    printf("Continuo il ciclo...\n");
+#endif
                 } while (m.hops > 0 && alrm != ALLARME_SCATTATO);
 
                 if (m.hops == 0 && limiteSistema == 1)
@@ -487,14 +495,14 @@ int inviaTransazione(int flag)
                 {
 
                     /*printf("LIMITE RAGGIUNTO, ERRORE else esterno riga 498 UTENTE.c\n");*/
-                    if(limiteSistema == 0)
+                    if (limiteSistema == 0)
                     {
                         /*setSoRetry(getSoRetry() - 1);*/
                         attesaNonAttiva(getSoMinTransGenNsec(), getSoMaxTransGenNsec());
                     }
-                    #if(ENABLE_TEST)
+#if (ENABLE_TEST)
                     printf("SO_RETRY: %d\n", getSoRetry());
-                    #endif
+#endif
                 }
 
                 /*attendo*/
@@ -559,4 +567,9 @@ void avvisaPoiCambiaStato()
     user = UTENTE_STOP;
 
     return;
+}
+
+void interruptHandler(int sigNum)
+{
+    user = UTENTE_STOP;
 }

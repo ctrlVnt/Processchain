@@ -67,11 +67,7 @@ int idSemaforoAccessoMiaCodaMessaggi;
 /*variabili ausiliari*/
 /*variabile usata come secondo parametro nella funzione strtol, come puntatore dove la conversionbe della stringa ha avuto fine*/
 char *endptr;
-/*
-quasta variabile contiene il numero di numero totale dei nodi attivi nella simulazione
-REMINDER: per recuperare il valore, bisogna accedere alla 0-sime cella della shared memory contenente tutti gli id delle MQ associate 1-1 ad ogni nodo.
-*/
-int numeroTotaleNodi;
+/**/
 /*variabile struttura per effettuare le operazioni sul semaforo*/
 struct sembuf operazioniSemaforo;
 /*variabile determina ciclo di vita del nodo*/
@@ -100,27 +96,29 @@ struct sigaction sigactionSigusr1Nuova;
 struct sigaction sigactionSigusr1Precedente;
 sigset_t maskSetForSigusr1;
 
+/*sigaction generica - uso generale*/
+struct sigaction actNuova;
+/*old sigaction generica - uso generale*/
+struct sigaction actPrecedente;
+
 /*funzioni relative al nodo*/
 void parseThenStoreParameter(int *dest, char const *argv[], int num, int flag);
 /*gesrtione del segnale*/
 void sigusr1Handler(int sigNum);
 void aggiornaBilancioNodo(int indiceLibroMastroRiservato);
+void interruptHandler(int sigNum);
 
 int main(int argc, char const *argv[])
 {
     /**/
     int idCoda;
     int inviato;
-    int primaTransazioneRicevuta;
-    int invioAmico;
     int msgsndRisposta;
     int mexAmici;
     int regalo;
     int regaloInviato;
     message messaggioInviato;
     mexAmici = 0;
-    invioAmico = 1;
-    primaTransazioneRicevuta = 1;
     inviato = 1;
     limiteRisorse = 1;
     /**/
@@ -257,6 +255,8 @@ int main(int argc, char const *argv[])
 
     /*POSSO INIZIARE A GESTIRE LE TRANSAZIONI*/
 
+    /*printf("Imposto SIGINT a %d\n", impostaHandlerSaNoMask(&actNuova, &actPrecedente, SIGINT, interruptHandler));*/
+
     node = NODO_CONTINUE;
     tpPiena = 0;
     /*alloco dinamicamente la TP e blocco*/
@@ -309,7 +309,6 @@ int main(int argc, char const *argv[])
                     mexAmici++;
                 }
                 /*MODIFICA6GEN*/
-                /* primaTransazioneRicevuta = rand() % 2;*/
                 /*se messaggio e' valido, incremento il contatore di riempimento della TP*/
                 tpPiena++;
                 /*incremento il contatore che regola la possibilita' di riempire il blocco*/
@@ -352,7 +351,7 @@ int main(int argc, char const *argv[])
         /*
             INVIO TRANSAZIONE DI REGALO
         */
-        if (/*invioAmico == 1*/ 1) /*variabile invioAmico risulta FORSE superficiale*/
+        if (1) /*variabile invioAmico risulta FORSE superficiale*/
         {
             messaggioInviato.mtype = 5;
             messaggioInviato.transazione = transactionPool[(indiceSuccessivoBlocco++)];
@@ -452,6 +451,8 @@ int main(int argc, char const *argv[])
         /*release dell'indice libro mastro*/
 
         /*se l'indice supera la capacita' del libro mastro - ciclo di vita termina*/
+        attesaNonAttiva(getSoMinTransProcNsec(), getSoMaxTransProcNsec());
+        /**/
         semopRisposta = semReserve(idSemaforoAccessoIndiceLibroMastro, -1, 0, 0);
         indiceLibroMastroRiservato = *(puntatoreSharedMemoryIndiceLibroMastro);
         if (indiceLibroMastroRiservato >= getSoRegistrySize()) /*11 parametro settato*/
@@ -460,7 +461,6 @@ int main(int argc, char const *argv[])
             node = NODO_STOP;
             break;
         }
-
         /*ho riservato l'indice - posso scrivere sul libro mastro*/
         for (i = 0; i < getSoBlockSize(); i++)
         {
@@ -468,7 +468,6 @@ int main(int argc, char const *argv[])
         }
         *(puntatoreSharedMemoryIndiceLibroMastro) += 1;
         semopRisposta = semRelease(idSemaforoAccessoIndiceLibroMastro, 1, 0, 0);
-        attesaNonAttiva(getSoMinTransProcNsec(), getSoMaxTransProcNsec());
 /*TEST*/
 #if (ENABLE_TEST)
         printf("[%d] ho finito di scrivere sul libro mastro\n", getpid());
@@ -486,15 +485,14 @@ int main(int argc, char const *argv[])
         /*aggiorno bilancio del nodo*/
         aggiornaBilancioNodo(indiceLibroMastroRiservato);
         /*USARE VARIABILE PER INVIO TRANSAZIONE A NODI AMICI, RIMETTO A ZERO
-          invioAdAmico = 1;*/
-        invioAmico = 1;
+        invioAdAmico = 1;*/
     }
 
-    /*****************************************/
-    /*STAMPO IL NUMERO DI AMICI RICEVUTI*/
-    #if(ENABLE_TEST)
+/*****************************************/
+/*STAMPO IL NUMERO DI AMICI RICEVUTI*/
+#if (ENABLE_TEST)
     printf("\n\n\nHo ricevuto: %d transazioni da 'AMICI'\n\n\n.\n", mexAmici);
-    #endif
+#endif
 
     /*CICLO DI VITA DEL NODO TERMINA*/
     /*Deallocazione delle risorse*/
@@ -542,8 +540,6 @@ void sigusr1Handler(int sigNum)
     node = NODO_STOP;
 }
 
-
-
 /*visto che lavoriamo con le SM, provare a delegare questa operazione al libro mastro*/
 void aggiornaBilancioNodo(int indiceLibroMastroRiservato)
 {
@@ -561,4 +557,9 @@ void aggiornaBilancioNodo(int indiceLibroMastroRiservato)
 #if (ENABLE_TEST)
     printf("[%d] aggiornamento bilancio terminato\n", getpid());
 #endif
+}
+
+void interruptHandler(int sigNum)
+{
+    node = NODO_STOP;
 }
