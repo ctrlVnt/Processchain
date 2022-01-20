@@ -126,7 +126,6 @@ void aggiungiAmico(int numeroOrdine);
 
 int main(int argc, char const *argv[])
 {
-    q = 10;
     printf("Sono MASTER[%d]\n", getpid());
     master = MASTER_CONTINUE;
     motivoTerminazione = -1;
@@ -139,9 +138,12 @@ int main(int argc, char const *argv[])
     }
     nextFriend = 0;
     
+    /*assegno al massimo cento nodi creabili*/
+    q = getSoSimSec() >= 100 ? 100 : getSoSimSec();
+
     /*Inizializzazione array per stampa*/
     printUtenti = (utente *)calloc(getSoUsersNum(), sizeof(utente));
-    printNodi = (nodo *)calloc((q * getSoNodesNum()), sizeof(nodo));
+    printNodi = (nodo *)calloc((q + getSoNodesNum()), sizeof(nodo));
     
     indiceStampaUtenti = 0;
     indiceStampaNodi = 0;
@@ -201,7 +203,7 @@ int main(int argc, char const *argv[])
 
     /*SM*/
     /*REMINDER: prima cella di questa SM indica il NUMERO totale di CODE presenti, quindi rispecchia anche il numero dei nodi presenti*/
-    idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (q * getSoNodesNum() + 1), 0600 | IPC_CREAT);
+    idSharedMemoryTuttiNodi = shmget(IPC_PRIVATE, sizeof(nodo) * (q + getSoNodesNum() + 1), 0600 | IPC_CREAT);
     if (idSharedMemoryTuttiNodi == -1)
     {
         perror("shmget idSharedMemoryTuttiNodi");
@@ -242,8 +244,8 @@ int main(int argc, char const *argv[])
         puntatoreSharedMemoryTuttiNodi[i + 1].transazioniPendenti = 0;
     }
 
-    /*suppongo di non poter avere piu' di q*SO_FRIENDS_NUM +1 campo header amici*/
-    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, q * getSoNodesNum() * (getSoFriendsNum() * 2 + 1) * sizeof(int), 0600 | IPC_CREAT);
+    /*suppongo di non poter avere piu' di q + SO_FRIENDS_NUM +1 campo header amici*/
+    idSharedMemoryAmiciNodi = shmget(IPC_PRIVATE, q + getSoNodesNum() * (getSoFriendsNum() * 2 + 1) * sizeof(int), 0600 | IPC_CREAT);
     if (idSharedMemoryAmiciNodi == -1)
     {
         perror("shmget idSharedMemoryAmiciNodi");
@@ -259,10 +261,10 @@ int main(int argc, char const *argv[])
     }
 
     /*setto ogni cella della shared memory a -1*/
-    memset(puntatoreSharedMemoryAmiciNodi, -1, q * getSoNodesNum() * (getSoFriendsNum() * 2 + 1) * sizeof(int));
+    memset(puntatoreSharedMemoryAmiciNodi, -1, q + getSoNodesNum() * (getSoFriendsNum() * 2 + 1) * sizeof(int));
 
     /*SEMAFORI*/
-    idSemaforoAccessoCodeMessaggi = semget(IPC_PRIVATE, q * getSoNodesNum(), 0600 | IPC_CREAT);
+    idSemaforoAccessoCodeMessaggi = semget(IPC_PRIVATE, q + getSoNodesNum(), 0600 | IPC_CREAT);
 
     if (idSemaforoAccessoCodeMessaggi == -1)
     {
@@ -287,7 +289,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
 
-    semaforoUnion.val = q * getSoNodesNum();
+    semaforoUnion.val = q + getSoNodesNum();
 
     semopRisposta = semctl(idSemaforoLimiteRisorse, 0, SETVAL, semaforoUnion);
 
@@ -630,7 +632,7 @@ int main(int argc, char const *argv[])
             printf("Ricevuto la transazione: %ld, %d, %d\n", m.mtype, m.transazione.receiver, m.transazione.quantita);
             /*devo creare un nuovo nodo*/
             /*verifico se ho ancora spazio per poter ospitare un nuovo nodo*/
-            if (puntatoreSharedMemoryTuttiNodi[0].nodoPid < (q * getSoNodesNum()))
+            if (puntatoreSharedMemoryTuttiNodi[0].nodoPid < (q + getSoNodesNum()))
             {
                 operazioniSemaforo.sem_flg = 0;
                 operazioniSemaforo.sem_num = 0;
@@ -739,7 +741,6 @@ int main(int argc, char const *argv[])
             }
             attesaNonAttiva(500000, 10000000);
         }
-        printf("VALORE SEMAFORO: %d\n", semctl(idSemaforoLimiteRisorse, 0, GETVAL));
         /*stampo INFO */
         stampaTerminale(0);
     }
@@ -1092,8 +1093,15 @@ void stampaTerminale(int flag)
                 nodoMin.transazioniPendenti = puntatoreSharedMemoryTuttiNodi[contatoreStampa + 1].transazioniPendenti;
             }
         }
-        printf("\t%09d | %09d | %09d <-- NODO con budget MAGGIORE\n", nodoMax.nodoPid, nodoMax.budget, nodoMax.transazioniPendenti);
-        printf("\t%09d | %09d | %09d <-- NODO con budget MINORE\n", nodoMin.nodoPid, nodoMin.budget, nodoMin.transazioniPendenti);
+        
+        printf("\t%09d | %09d | %09d", nodoMax.nodoPid, nodoMax.budget, nodoMax.transazioniPendenti);
+        blue();
+        printf(" <-- NODO con budget MAGGIORE\n");
+        reset();
+        printf("\t%09d | %09d | %09d", nodoMin.nodoPid, nodoMin.budget, nodoMin.transazioniPendenti);
+        red();
+        printf(" <-- NODO con budget MINORE\n");
+        reset();
         printf("\nTOTALE NODI: %d\n", puntatoreSharedMemoryTuttiNodi[0].nodoPid);
     }
     printf("\n *************************\n# Numero di blocchi: \033[1;37m%d\033[0m #\n *************************\n", *(puntatoreSharedMemoryIndiceLibroMastro));

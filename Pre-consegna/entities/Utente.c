@@ -310,10 +310,8 @@ int inviaTransazione(int flag)
             idNodo = scegliNumeroNodo(puntatoreSharedMemoryTuttiNodi[0].nodoPid);
 
             /*preparo la transazione*/
-            /*q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);*/
-            q = 2;
-            /*t.reward = (q * getSoReward()) / 100;*/
-            t.reward = 1;
+            q = getQuantitaRandom(puntatoreSharedMemoryTuttiUtenti[numeroOrdine + 1].budget);
+            t.reward = (q * getSoReward()) / 100;
             if (t.reward == 0)
             {
                 t.reward = 1;

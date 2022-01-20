@@ -3,9 +3,20 @@
 /***********************/
 /***COMPILED***TIME*****/
 /***********************/
-int SO_BLOCK_SIZE = 2;
-int SO_TP_SIZE = 5;
+int SO_BLOCK_SIZE = 5;
+int SO_TP_SIZE = 10;
 /***********************/
+/*sim1
+int SO_BLOCK_SIZE = 100;
+int SO_TP_SIZE = 1000;*/
+
+/*sim2
+int SO_BLOCK_SIZE = 10;
+int SO_TP_SIZE = 20;*/
+
+/*sim3
+int SO_BLOCK_SIZE = 10;
+int SO_TP_SIZE = 100;*/
 
 int getSoBlockSize()
 {

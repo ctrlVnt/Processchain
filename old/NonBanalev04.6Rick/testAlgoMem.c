@@ -57,7 +57,7 @@ float probNodNum(float utenti, float nodi, float tp, float sohops){
 }
 
 int main(){
-    printf("alloco memoria: %f\n", probNodNum(500, 30, 10, 2));
+    printf("alloco memoria: %f\n", probNodNum(1000, 100, 3, 5));
 }
 
 /*Assumo che verranno creati almeno 25 nodi (100 / 4 byte)
