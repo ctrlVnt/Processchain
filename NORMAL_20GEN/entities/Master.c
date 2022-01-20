@@ -3,13 +3,6 @@
 #include "../headers/utente_master.h"
 #include "../headers/customs.h"
 
-/**/
-/*TODO: INTRODURRE handler per CTRL_Z e CTRL_C*/
-/**/
-
-/********************************/
-/*******PARAMETRI**GLOBALI*******/
-/********************************/
 /*ID SM*/
 /*ID della SM contenente il libro mastro*/
 int idSharedMemoryLibroMastro;
@@ -19,7 +12,7 @@ int idSharedMemoryIndiceLibroMastro;
 int idSharedMemoryTuttiNodi;
 /*ID della SM contenente tutti i PID dei processi utenti - visti come destinatari*/
 int idSharedMemoryTuttiUtenti;
-/*ID della SM che contiene i NODE_FRINEDS di ciascun nodo*/
+/*ID della SM che contiene i NODE_FRIENDS di ciascun nodo*/
 int idSharedMemoryAmiciNodi;
 /*******/
 
@@ -32,20 +25,18 @@ int *puntatoreSharedMemoryIndiceLibroMastro;
 nodo *puntatoreSharedMemoryTuttiNodi;
 /*Dopo l'attach, punta alla porzione di memoria dove si trovano effettivamente i PID degli utenti*/
 utente *puntatoreSharedMemoryTuttiUtenti;
-/*Dopo l'attach punta alla porzione di memroia dove si trovano gli amici del nodo*/
+/*Dopo l'attach punta alla porzione di memoria dove si trovano gli amici del nodo*/
 int *puntatoreSharedMemoryAmiciNodi;
 /*id semaforo limite risorse*/
 int idSemaforoLimiteRisorse;
 /*************/
 
 /*Semafori*/
-/*
-Id del semaforo che regola l'accesso all'indice
-Il semaforo di tipo binario.
-*/
+/*Id del semaforo che regola l'accesso all'indice.
+Il semaforo di tipo binario.*/
 int idSemaforoAccessoIndiceLibroMastro;
 /*
-Id del semaforo che regola l'accesso alla MQ associata al nodo
+Id del semaforo che regola l'accesso alla Msgqueue associata al nodo
 Il valore iniziale e' pari alla capacita' della transaction pool.
 */
 int idSemaforoAccessoCodeMessaggi;
@@ -70,15 +61,13 @@ struct sigaction sigactionAlarmNuova;
 /*sigaction dove memorizzare lo stato precedente*/
 struct sigaction sigactionAlarmPrecedente;
 /*maschera per SIGALARM*/
-/*sigset_t maskSetForAlarm;*/
 /*sigaction generica - uso generale*/
 struct sigaction actNuova;
-/*old sigaction generica - uso generale*/
+/*precedente sigaction generica - uso generale*/
 struct sigaction actPrecedente;
 /**/
-/*sigset_t maskSetForAct;*/
 /*******************************************/
-/*Coda di messaggi del master*/
+/*Variabile messaggio prelevato da coda di messaggi del master*/
 message m;
 
 /*variabili ausiliari*/
@@ -134,6 +123,7 @@ int indicePassaCelleLibroStampa;
 int readAllParameters(const char *configFilePath);
 /*gestione del segnale*/
 void alarmHandler(int sigNum);
+/*gestisce il segnale SIGINT*/
 void interruptHandler(int sigNum);
 /*stampa terminale*/
 void stampaTerminale(int flag);

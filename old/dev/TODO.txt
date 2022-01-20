@@ -1,0 +1,126 @@
+PRIMA DISCUTERE, MODIFICARE e AGGIUNGERE:
+/*
+La seguente funzione restituisce il PID dell'UTENTE scelto a caso a cui inviare la transazione.
+Alcune assunzioni:
+1. La memoria condivisa esiste ed e' POPOLATA
+2. max rappresenta il valore di NUM_USERS che al momento della invocazione deve avere un valore valido.
+*/
+int getRandomUser(int max, int myPid, int *shmArrayUsersPidPtr)
+{
+    int userPidId;
+    srand(myPid);
+    
+    do
+    {
+        userPidId = rand()%(max - 1);
+    } while (*(shmArrayUsersPidPtr + userPidId) == myPid && *(shmArrayUsersPidPtr + userPidId) != -1);
+    
+    return *(shmArrayUsersPidPtr + userPidId);
+}
+
+/*
+La seguente funzione attravera la shared memory, verificando se il contenuto della cella coincide con il valore passato come pidToRemove.
+Alcune assunzioni:
+1. La memoria condivisa esiste ed e' POPOLATA
+2. numUsers rappresenta il valore di NUM_USERS che al momento della invocazione deve avere un valore valido.
+
+DA CONCORDRE - assegnare al processo terminato -1 oppure un altro valore.
+*/
+void updateShmArrayUsersPid(int pidToRemove, int *shmArrayUsersPidPtr, int numUsers)
+{
+    /*ACCEDO IN MODO ESCLUSIVO ALLA SM - TODO*/
+    for (int i = 0; i < numUsers; i++)
+    {
+        if(*(shmArrayUsersPidPtr + i) == pidToRemove)
+        {
+            *(shmArrayUsersPidPtr + i) = -1;
+            break;
+        }
+    }
+    /*RILASCIO LA RISORSA - TODO*/
+}
+
+/*
+La seguente funzione restituisce il MQID della coda associata ad ogni NODO scelto a caso a cui inviare la transazione.
+Alcune assunzioni:
+1. La memoria condivisa esiste ed e' POPOLATA
+2. max rappresenta il valore di NUM_NODES che al momento della invocazione deve avere un valore valido.
+*/
+int getRandomUser(int max, int *shmArrayNodeMsgQueuePtr)
+{
+    srand(getpid());
+    return *(shmArrayNodeMsgQueuePtr + rand()%(max - 1));
+}
+
+2. IMPLEMENTARE L'ATTESA DELLA TERMINAZIONE DI PROCESSI UTENTE
+/*POSSIBILE IMPLEMENTAZIONE DELL'ATTESA DELLA TERMINAZIONE DEI FIGLI*/
+    while((childPidWait = waitpid(-1, &childStatus, 0)) != -1)
+    {
+        if(WIFEXITED(childStatus))
+        {
+            printf("%d terminated with status %d - terminated by %d\n", childPidWait, WEXITSTATUS(childStatus), WTERMSIG(childStatus));
+        }
+        else if(WIFSIGNALED(childStatus))
+        {
+            printf("%d stopped by signal %d\n", childPidWait, WTERMSIG(childStatus));
+        }
+        else if(WCOREDUMP(childStatus))
+        {
+            printf("%d ha generato CORE DUMP\n", childPidWait);
+        }
+        else if(WIFSTOPPED(childStatus))
+        {
+            printf("%d stoppato da un SIGNAL di tipo %d\n", childPidWait, WSTOPSIG(childStatus));
+        }
+        else if(WIFCONTINUED(childStatus))
+        {
+            printf("%d e' stato risvegliato da un SIGNAL\n", childPid);
+        }
+        else
+        {
+            printf("ERRORE\n");
+        }
+    }
+
+3. AVVIO SINCRONIZZATO:
+semSyncStartId = semget(IPC_PRIVATE, 1, IPC_CREAT | 0600);
+ops.sem_flg = 0; /*no flags*/
+sops.sem_num = 0; /*primo semaforo nel set*/
+sops.sem_op = SO_USERS_NUM + 1;
+semop(semSyncStartId, &sops, 1);
+//OGNI FILIO
+    sops.sem_flg = 0;
+    sops.sem_num = 0;
+    sops.sem_op = -1;
+    semop(semSyncStartId, &sops, 1); // DECREMENTA
+//WAIT FOR ZERO
+    sops.sem_flg = 0;
+    sops.sem_num = 0;
+    sops.sem_op = 0;
+    semop(semSyncStartId, &sops, 1);
+
+//parent farà
+    sops.sem_flg = 0;
+    sops.sem_num = 0;
+    sops.sem_op = -1;
+    semop(semSyncStartId, &sops, 1)
+
+4. CALCOLO DEL BILANCIO
+/*
+La seguente funzione restituisce il bilancio dell'utente.
+Alcune assunzioni:
+1. La memoria condivisa esiste ed e' POPOLATA
+2. max rappresenta il valore di SO_BLOCK_SIZE che al momento della invocazione deve avere un valore valido.
+3. myPid del processo utente in esecuzione
+*/
+int getMyBilancio(int myPid, transazione *shmLibroMastroPtr, int *index, int max)
+{
+    int bilancio = 0;
+    for(index; index < max; index++){
+        if(((*(shmLibroMastroPtr + *index)).receiver == myPid || (*(shmLibroMastroPtr + *index)).sender == myPid) && (*(shmLibroMastroPtr + *index)).quantita != 0)
+        {
+            bilancio += (*(shmLibroMastroPtr + *index)).receiver;
+        }
+    }
+    return bilancio;
+}
