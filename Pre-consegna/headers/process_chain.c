@@ -3,7 +3,7 @@
 /***********************/
 /***COMPILED***TIME*****/
 /***********************/
-int SO_BLOCK_SIZE = 3;
+int SO_BLOCK_SIZE = 2;
 int SO_TP_SIZE = 5;
 /***********************/
 

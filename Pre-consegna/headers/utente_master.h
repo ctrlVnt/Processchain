@@ -14,3 +14,4 @@ Se un utente termina prematuramente, questo e' il suo valore di ritorno.
 #define NO_UTENTI_VIVI 1
 #define REGISTRY_FULL 2
 #define TERMINATO_DA_UTENTE 3
+#define LIMITE_SISTEMA 4

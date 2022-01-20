@@ -175,6 +175,7 @@ int main(int argc, char const *argv[])
 
     /*imposto l'handler*/
     impostaHandlerSaNoMask(&sigactionSigusr1Nuova, &sigactionSigusr1Precedente, SIGUSR1, sigusr1Handler);
+    impostaHandlerSaNoMask(&actNuova, &actPrecedente, SIGINT, interruptHandler);
 
     /*POSSO INIZIARE A GESTIRE LE TRANSAZIONI*/
     node = NODO_CONTINUE;

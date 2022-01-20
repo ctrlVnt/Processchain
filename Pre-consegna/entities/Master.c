@@ -14,7 +14,6 @@ int idSharedMemoryTuttiNodi;
 int idSharedMemoryTuttiUtenti;
 /*ID della SM che contiene i NODE_FRIENDS di ciascun nodo*/
 int idSharedMemoryAmiciNodi;
-/*******/
 
 /*Puntatori SM*/
 /*Dopo l'attach, punta alla porzione di memoria dove si trova effettivamente il libro mastro*/
@@ -29,7 +28,6 @@ utente *puntatoreSharedMemoryTuttiUtenti;
 int *puntatoreSharedMemoryAmiciNodi;
 /*id semaforo limite risorse*/
 int idSemaforoLimiteRisorse;
-/*************/
 
 /*Semafori*/
 /*Id del semaforo che regola l'accesso all'indice.
@@ -42,7 +40,6 @@ Il valore iniziale e' pari alla capacita' della transaction pool.
 int idSemaforoAccessoCodeMessaggi;
 /*Id del semaforo per sincronizzare l'avvio dei processi*/
 int idSemaforoSincronizzazioneTuttiProcessi;
-/**********/
 
 /*variabile struttura per effettuare le operazioni sul semaforo*/
 /*streuttura generica per dialogare con semafori IPC V*/
@@ -51,7 +48,7 @@ struct sembuf operazioniSemaforo;
 unsigned short *arrayValoriInizialiSemaforiCodeMessaggi;
 /*struttura utilizzata nella semctl*/
 union semun semaforoUnion;
-/***************************************************************/
+
 /*ID MQ del processo MASTER*/
 int idCodaMessaggiProcessoMaster;
 
@@ -65,8 +62,7 @@ struct sigaction sigactionAlarmPrecedente;
 struct sigaction actNuova;
 /*precedente sigaction generica - uso generale*/
 struct sigaction actPrecedente;
-/**/
-/*******************************************/
+
 /*Variabile messaggio prelevato da coda di messaggi del master*/
 message m;
 
@@ -92,19 +88,17 @@ int childStatus;
 int motivoTerminazione;
 int indiceAmicoSuccessivo;
 int cont;
-/*********************/
 
 /*Variabili necessari per poter avviare i nodi, successivamente gli utenti*/
 char parametriPerNodo[15][32];
 char intToStrBuff[32];
 char parametriPerUtente[17][32];
-/**************************************************************************/
 
 /*Coefficiente LIMITE RISORSE*/
 int q;
 int k;
 int g;
-/**/
+
 /*VARIABILI PER LA STAMPA*/
 utente utenteMax;
 utente utenteMin;
@@ -115,9 +109,7 @@ nodo *printNodi;
 int indiceStampaUtenti;
 int indiceStampaNodi;
 int indicePassaCelleLibroStampa;
-/********/
 
-/*******************/
 /*FUNZIONI*/
 /*Inizializza le variabili globali da un file di input TXT. */
 int readAllParameters(const char *configFilePath);
@@ -131,12 +123,13 @@ void stampaTerminale(int flag);
 void outputLibroMastro();
 /*la funzione che aggiunge amici*/
 void aggiungiAmico(int numeroOrdine);
-/**********/
 
 int main(int argc, char const *argv[])
 {
     q = 10;
     printf("Sono MASTER[%d]\n", getpid());
+    master = MASTER_CONTINUE;
+    motivoTerminazione = -1;
     /*Parsing dei parametri a RUN-TIME*/
     readAllParametersRisposta = readAllParameters(argv[1]);
     if (readAllParametersRisposta == -1)
@@ -294,7 +287,7 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
 
-    semaforoUnion.val = q * getSoNodesNum() /*getTpSize()*/;
+    semaforoUnion.val = q * getSoNodesNum();
 
     semopRisposta = semctl(idSemaforoLimiteRisorse, 0, SETVAL, semaforoUnion);
 
@@ -378,7 +371,6 @@ int main(int argc, char const *argv[])
     strcpy(parametriPerNodo[13], intToStrBuff);
     sprintf(intToStrBuff, "%d", idSemaforoLimiteRisorse);
     strcpy(parametriPerNodo[14], intToStrBuff);
-    /*******************************************/
 
     for (i = 0; i < getSoNodesNum(); i++)
     {
@@ -386,7 +378,8 @@ int main(int argc, char const *argv[])
         {
         case -1:
             perror("fork");
-            exit(EXIT_FAILURE);
+            master = MASTER_STOP;
+            motivoTerminazione = LIMITE_SISTEMA;
             break;
         case 0:
             /*QUA HO EREDITATO TUTTI I PUNTATORI*/
@@ -403,7 +396,6 @@ int main(int argc, char const *argv[])
                 exit(EXIT_FAILURE);
             }
 
-            /***********************************************/
             /*INIZIO Costruire la lista di parametri*/
             sprintf(intToStrBuff, "%d", /*i-esimo nodo*/ i);
             strcpy(parametriPerNodo[4], intToStrBuff);
@@ -530,7 +522,6 @@ int main(int argc, char const *argv[])
     sprintf(intToStrBuff, "%d", idSemaforoLimiteRisorse);
     strcpy(parametriPerUtente[16], intToStrBuff);
 
-    /********************************************************/
 
     for (i = 0; i < getSoUsersNum(); i++)
     {
@@ -538,7 +529,8 @@ int main(int argc, char const *argv[])
         {
         case -1:
             perror("fork");
-            exit(EXIT_FAILURE);
+            master = MASTER_STOP;
+            motivoTerminazione = LIMITE_SISTEMA;
             break;
         case 0:
             /*QUA HO EREDITATO TUTTI I PUNTATORI*/
@@ -596,12 +588,11 @@ int main(int argc, char const *argv[])
     /*INIZIO Impostazione sigaction per ALARM*/
     /*no signals blocked*/
     impostaHandlerSaNoMask(&sigactionAlarmNuova, &sigactionAlarmPrecedente, SIGALRM, alarmHandler);
+    impostaHandlerSaNoMask(&actNuova, &actPrecedente, SIGINT, interruptHandler);
 
     alarm(getSoSimSec());
     /*FINE Impostazione sigaction per ALARM*/
     /*CICLO DI VITA DEL PROCESSO MASTER*/
-    master = MASTER_CONTINUE;
-    motivoTerminazione = -1;
     while (master)
     {
         attesaNonAttiva(1000000000, 1000000000);
@@ -710,7 +701,7 @@ int main(int argc, char const *argv[])
                         {
                             msgsnd(msggetRisposta, &m, sizeof(m.transazione) + sizeof(m.hops), 0);
                         }
-                        
+                        semRelease(idSemaforoLimiteRisorse, SO_TP_SIZE - semctl(idSemaforoAccessoCodeMessaggi, puntatoreSharedMemoryTuttiNodi[0].nodoPid, GETVAL), 0, 0);
                         puntatoreSharedMemoryTuttiNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid + 1].mqId = msggetRisposta;
                         printNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].nodoPid = childPid;
                         printNodi[puntatoreSharedMemoryTuttiNodi[0].nodoPid].budget = 0;
@@ -748,6 +739,7 @@ int main(int argc, char const *argv[])
             }
             attesaNonAttiva(500000, 10000000);
         }
+        printf("VALORE SEMAFORO: %d\n", semctl(idSemaforoLimiteRisorse, 0, GETVAL));
         /*stampo INFO */
         stampaTerminale(0);
     }
@@ -970,6 +962,8 @@ void stampaTerminale(int flag)
         case REGISTRY_FULL:
             ragione = "registro raggiunto capienza massima\0";
             break;
+        case LIMITE_SISTEMA:
+            ragione = "limite di sistema su fork raggiunto";
         default:
             break;
         }
