@@ -31,7 +31,7 @@ The life cycle of a node can be defined as follows:
 ## Where to find it?
 There are two folders:
 - the "old" folder contains previous lyrics and various previously used files.
-- in the "Porchesschain" folder you will find the project with instructions for the test.
+- in the "Prochesschain" folder you will find the project with instructions for the test.
 
 ## Credits
 Project made by: @Cosmok21 @botu27 @ctrlVnt
