@@ -34,6 +34,6 @@ There are two folders:
 •in the "Porchesschain" folder you will find the project with instructions for the test.
 
 ## Credits
-Project made by: @ctrlVnt
+Project made by: @Cosmok21 @botu27 @ctrlVnt
 
-Thank you!
+**Thanks for visit, have fun!**
