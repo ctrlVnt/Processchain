@@ -4,6 +4,11 @@
 
 University project for process synchronization within a UNIX system.
 
+### Prerequisites
+
+* It need to have gcc compiler
+* Perfect to run on Linux, it can also run on mac
+
 ### About
 
 We intend to simulate a ledger containing the data of monetary transactions between different users.
